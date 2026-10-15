@@ -170,8 +170,10 @@ static void levelSelect(Player *player) {
 
     while (1) {
         clearScreen();
-        printf("=== SELECT LEVEL (%s) ===\n\n", player->name);
-
+        
+                printf("=== SELECT LEVEL ===\n\n");
+        printf("Player: %s\n\n", player->name);
+        
         for (int n = 1; n <= MAX_LEVEL; n++) {
             Level lv = getLevel(n);
             const char *status;
@@ -242,7 +244,9 @@ static void gameMenu(Player *player) {
 
     while (1) {
         clearScreen();
-        printf("=== MENU (%s) - Level %d ===\n\n", player->name, player->level);
+               printf("=== MENU ===\n\n");
+        printf("Player: %s\n", player->name);
+        printf("Level:  %d\n\n", player->level);
         printf("1. Play (continue level %d)\n", player->level);
         printf("2. Select level\n");
         printf("3. My stats\n");
