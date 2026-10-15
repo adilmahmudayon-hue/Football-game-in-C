@@ -3,10 +3,15 @@
 #include <time.h>
 #include "player.h"
 #include "level.h"
+#include <direct.h>
 
 #define MAX_PLAYERS 100
-#define PLAYER_FILE "players.txt"
-#define SCORE_FILE  "scores.txt"
+#define PLAYER_FILE "data/players.txt"
+#define SCORE_FILE  "data/scores.txt"
+
+static void ensureDataDir(void) {
+    _mkdir("data");   // does nothing if the folder already exists
+}
 
 static void flushInput(void) {
     int c;
@@ -36,7 +41,9 @@ static int loadAll(Player list[]) {
 }
 
 static void saveAll(const Player list[], int n) {
+    ensureDataDir();
     FILE *f = fopen(PLAYER_FILE, "w");
+    
     if (!f) {
         printf("Error: could not save %s\n", PLAYER_FILE);
         return;
@@ -134,8 +141,11 @@ void recordScore(Player *p, int score) {
         printf("NEW HIGH SCORE: %d!\n", score);
     }
     savePlayer(p);
-
+    
+        ensureDataDir();
     FILE *f = fopen(SCORE_FILE, "a");
+
+    
     if (f) {
         time_t now = time(NULL);
         char date[20];
