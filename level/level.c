@@ -1,11 +1,12 @@
 #include "level.h"
 
 static const Level levels[MAX_LEVEL] = {
-    {1, 3,  6},
-    {2, 3,  8},
-    {3, 3, 10},
-    {4, 3, 12},
-    {5, 3, 14}
+    /* num shots target speed min max */
+    {1, 3,  4, 2, 35, 70},
+    {2, 3,  6, 3, 40, 70},
+    {3, 3,  8, 3, 45, 70},
+    {4, 3, 10, 4, 50, 70},
+    {5, 3, 12, 5, 55, 70}
 };
 
 Level getLevel(int number) {

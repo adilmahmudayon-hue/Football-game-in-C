@@ -9,7 +9,7 @@
 #define GREEN  "\x1b[32m"
 #define YELLOW "\x1b[33m"
 #define RED    "\x1b[1;31m"
-#define SELECT "\x1b[1;30;43m"     // black text on yellow background
+#define SELECT "\x1b[1;30;43m"
 
 // Screen layout (1-based): title on line 1, crossbar on line 3,
 // cell (r,c) is centered at line 4+2r, column 7+6c.
@@ -30,18 +30,16 @@ static const char *pointColor(int p) {
 }
 
 void drawGoal(const char *title, int cursorRow, int cursorCol, int showBall) {
-    int width = COLS * 6 + 1;                 // inner width of the goal
+    int width = COLS * 6 + 1;
 
-    printf("\x1b[H");                         // cursor to top-left, no flicker
+    printf("\x1b[H");
     printf(BOLD "%s" RESET "\x1b[K\n\x1b[K\n", title);
 
-    // crossbar
     printf("  " WHITE "#");
     for (int i = 0; i < width; i++) printf("=");
     printf("#" RESET "\x1b[K\n");
 
     for (int r = 0; r < ROWS; r++) {
-        // row of cells
         printf("  " WHITE "#" RESET);
         for (int c = 0; c < COLS; c++) {
             printf(GRAY "|" RESET);
@@ -52,7 +50,6 @@ void drawGoal(const char *title, int cursorRow, int cursorCol, int showBall) {
         }
         printf(GRAY "|" WHITE "#" RESET "\x1b[K\n");
 
-        // net line, or grass under the last row
         if (r < ROWS - 1) {
             printf("  " WHITE "#" RESET GRAY);
             for (int c = 0; c < COLS; c++) printf("+-----");
@@ -64,7 +61,6 @@ void drawGoal(const char *title, int cursorRow, int cursorCol, int showBall) {
         }
     }
 
-    // grass strip, then the ball on the penalty spot
     printf(GREEN "  ");
     for (int i = 0; i < width + 2; i++) printf("~");
     printf(RESET "\x1b[K\n");
@@ -78,22 +74,39 @@ void drawGoal(const char *title, int cursorRow, int cursorCol, int showBall) {
     }
 }
 
-void animateShot(const char *title, int row, int col) {
-    int targetY = 4 + 2 * row;
-    int targetX = 7 + 6 * col;
-    int frames = 12;
-
+// Flies the ball from the penalty spot to (endY, endX) along an arc.
+// arcHeight = how many lines the ball rises above a straight line.
+static void flyBall(const char *title, int row, int col,
+                    int endY, int endX, int arcHeight, int frames) {
     for (int i = 1; i <= frames; i++) {
         double t = (double)i / frames;
-        int y = (int)(BALL_Y + (targetY - BALL_Y) * t + 0.5);
-        int x = (int)(BALL_X + (targetX - BALL_X) * t + 0.5);
+        double y = BALL_Y + (endY - BALL_Y) * t - 4.0 * arcHeight * t * (1.0 - t);
+        double x = BALL_X + (endX - BALL_X) * t;
+        int iy = (int)(y + 0.5);
+        int ix = (int)(x + 0.5);
 
         drawGoal(title, row, col, 0);
-        printf("\x1b[%d;%dH" BOLD "(O)" RESET, y, x - 1);
+        if (iy >= 1 && iy <= 15)
+            printf("\x1b[%d;%dH" BOLD "(O)" RESET, iy, ix - 1);
         fflush(stdout);
         sleepMs(45);
     }
-    printf("\x1b[17;1H");                     // move below the picture
+}
+
+void animateShot(const char *title, int row, int col, ShotResult result) {
+    int targetX = 7 + 6 * col;
+
+    if (result == SHOT_HIT) {
+        // row is the row the ball lands in
+        int targetY = 4 + 2 * row;
+        flyBall(title, row, col, targetY, targetX, 3, 16);
+    } else if (result == SHOT_UNDER) {
+        // drops onto the grass in front of the goal
+        flyBall(title, -1, -1, 12, targetX, 2, 14);
+    } else {
+        // flies up past the crossbar and off the screen
+        flyBall(title, -1, -1, -6, targetX, 0, 16);
+    }
 }
 
 int getPoints(int row, int col) {
