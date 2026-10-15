@@ -105,32 +105,32 @@ static int playLevel(Player *player, int levelNum) {
     int passed = (score >= lv.targetScore);
     recordScore(player, score);
 
-    if (passed) {
+    
+        if (passed) {
         printf("LEVEL COMPLETE!\n");
-        if (levelNum < MAX_LEVEL) {
-            saveProgress(player, levelNum + 1);
+        if (levelNum < MAX_LEVEL && levelNum + 1 > player->level) {
+            saveProgress(player, levelNum + 1);     // only ever move forward
             printf("Level %d unlocked.\n", levelNum + 1);
         }
         return 1;
     }
+
     printf("Level failed. You needed %d more points.\n",
            lv.targetScore - score);
     return 0;
 }
 
-static void playSession(Player *player) {
+
+static void playSession(Player *player, int levelNum) {
     while (1) {
-        int levelNum = player->level;
         Level lv = getLevel(levelNum);
 
         clearScreen();
         printf("=== LEVEL %d ===\n\n", lv.number);
         printf("Shots: %d\nTarget score: %d\n", lv.shots, lv.targetScore);
         printf("Perfect power zone: %d%% - %d%%\n", lv.sweetMin, lv.sweetMax);
-        
-                printf("\nLock your target, then stop the power bar.\n");
+        printf("\nLock your target, then stop the power bar.\n");
         printf("Green = exact target, lower = lands lower, higher = lands higher.\n");
-        
         pause();
 
         int result = playLevel(player, levelNum);
@@ -144,11 +144,68 @@ static void playSession(Player *player) {
                 return;
             }
             if (askTwo("Next level", "Back to menu") == 2) return;
+            levelNum++;
         } else {
             if (askTwo("Repeat this level", "Quit to menu") == 2) return;
         }
     }
 }
+
+// Shows level details and asks Play or Back. Returns 1 to play, 0 for back.
+static int levelPreview(int levelNum) {
+    Level lv = getLevel(levelNum);
+
+    clearScreen();
+    printf("=== LEVEL %d ===\n\n", lv.number);
+    printf("Shots:        %d\n", lv.shots);
+    printf("Target score: %d\n", lv.targetScore);
+    printf("Exact zone:   %d%% - %d%%\n", lv.sweetMin, lv.sweetMax);
+
+    return askTwo("Play", "Back to menu") == 1;
+}
+
+
+static void levelSelect(Player *player) {
+    int choice;
+
+    while (1) {
+        clearScreen();
+        printf("=== SELECT LEVEL (%s) ===\n\n", player->name);
+
+        for (int n = 1; n <= MAX_LEVEL; n++) {
+            Level lv = getLevel(n);
+            const char *status;
+            if (n > player->level)       status = "LOCKED";
+            else if (n == player->level) status = "UNLOCKED (current)";
+            else                         status = "COMPLETED";
+
+            printf("  %d. Level %d   target %2d   zone %d%%-%d%%   [%s]\n",
+                   n, n, lv.targetScore, lv.sweetMin, lv.sweetMax, status);
+        }
+        printf("\n  0. Back\n\nChoose a level: ");
+
+        if (scanf("%d", &choice) != 1) {
+            while (getchar() != '\n');
+            continue;
+        }
+        while (getchar() != '\n');
+
+        if (choice == 0) return;
+        if (choice < 1 || choice > MAX_LEVEL) continue;
+
+        if (choice > player->level) {
+            printf("\nLevel %d is locked. Complete level %d first.\n",
+                   choice, choice - 1);
+            pause();
+
+            } 
+
+            else if (levelPreview(choice)) {
+            playSession(player, choice);
+        }
+    }
+}
+
 
 static int loginMenu(Player *player) {
     int choice;
@@ -186,7 +243,11 @@ static void gameMenu(Player *player) {
     while (1) {
         clearScreen();
         printf("=== MENU (%s) - Level %d ===\n\n", player->name, player->level);
-        printf("1. Play\n2. My stats\n3. Leaderboard\n4. Quit\n\nChoose: ");
+        printf("1. Play (continue level %d)\n", player->level);
+        printf("2. Select level\n");
+        printf("3. My stats\n");
+        printf("4. Leaderboard\n");
+        printf("5. Quit\n\nChoose: ");
 
         if (scanf("%d", &choice) != 1) {
             while (getchar() != '\n');
@@ -195,16 +256,18 @@ static void gameMenu(Player *player) {
         while (getchar() != '\n');
 
         if (choice == 1) {
-            playSession(player);
+            playSession(player, player->level);
         } else if (choice == 2) {
+            levelSelect(player);
+        } else if (choice == 3) {
             clearScreen();
             showStats(player);
             pause();
-        } else if (choice == 3) {
+        } else if (choice == 4) {
             clearScreen();
             showLeaderboard();
             pause();
-        } else if (choice == 4) {
+        } else if (choice == 5) {
             return;
         }
     }
