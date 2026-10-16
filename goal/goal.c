@@ -23,6 +23,23 @@ static int points[ROWS][COLS] = {
     {2, 1, 1, 1, 1, 1, 1, 1, 2}
 };
 
+static int vanished[ROWS][COLS];
+
+void resetTargets(void) {
+    for (int r = 0; r < ROWS; r++)
+        for (int c = 0; c < COLS; c++)
+            vanished[r][c] = 0;
+}
+
+void vanishTarget(int row, int col) {
+    if (row >= 0 && row < ROWS && col >= 0 && col < COLS)
+        vanished[row][col] = 1;
+}
+
+int isVanished(int row, int col) {
+    return vanished[row][col];
+}
+
 static const char *pointColor(int p) {
     if (p >= 5) return RED;
     if (p >= 2) return YELLOW;
@@ -39,15 +56,22 @@ void drawGoal(const char *title, int cursorRow, int cursorCol, int showBall) {
     for (int i = 0; i < width; i++) printf("=");
     printf("#" RESET "\x1b[K\n");
 
-    for (int r = 0; r < ROWS; r++) {
+        for (int r = 0; r < ROWS; r++) {
         printf("  " WHITE "#" RESET);
         for (int c = 0; c < COLS; c++) {
             printf(GRAY "|" RESET);
-            if (r == cursorRow && c == cursorCol)
+
+            if (vanished[r][c]) {
+                if (r == cursorRow && c == cursorCol)
+                    printf(SELECT "[ - ]" RESET);
+                else
+                    printf("     ");
+            } else if (r == cursorRow && c == cursorCol) {
                 printf(SELECT "[ %d ]" RESET, points[r][c]);
-            else
+            } else {
                 printf("%s  %d  " RESET, pointColor(points[r][c]), points[r][c]);
-        }
+            }
+        }   // <-- this closing brace was missing
         printf(GRAY "|" WHITE "#" RESET "\x1b[K\n");
 
         if (r < ROWS - 1) {
@@ -60,7 +84,7 @@ void drawGoal(const char *title, int cursorRow, int cursorCol, int showBall) {
             printf(WHITE "#" RESET "\x1b[K\n");
         }
     }
-
+    
     printf(GREEN "  ");
     for (int i = 0; i < width + 2; i++) printf("~");
     printf(RESET "\x1b[K\n");
@@ -110,5 +134,6 @@ void animateShot(const char *title, int row, int col, ShotResult result) {
 }
 
 int getPoints(int row, int col) {
+    if (vanished[row][col]) return 0;
     return points[row][col];
 }

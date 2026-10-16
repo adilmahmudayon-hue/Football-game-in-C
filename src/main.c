@@ -25,25 +25,40 @@ static int askTwo(const char *a, const char *b) {
 }
 
 // Lets the player pick a target cell. Returns 1 if confirmed, 0 if they quit.
+
+// Lets the player pick a target cell. Returns 1 if confirmed, 0 if they quit.
 static int aimShot(const char *title, int *row, int *col) {
     *row = 1;
     *col = COLS / 2;
+    const char *warn = "";
 
     clearScreen();
     hideCursor();
 
     while (1) {
         drawGoal(title, *row, *col, 1);
-        printf("Target: row %d, column %d  =  %d points\x1b[K\n",
-               *row + 1, *col + 1, getPoints(*row, *col));
+        if (isVanished(*row, *col))
+            printf("Target: row %d, column %d  =  GONE\x1b[K\n",
+                   *row + 1, *col + 1);
+        else
+            printf("Target: row %d, column %d  =  %d points\x1b[K\n",
+                   *row + 1, *col + 1, getPoints(*row, *col));
         printf("Arrows: move   Enter: lock target   Q: quit\x1b[K\n");
+        printf("%s\x1b[K\n", warn);
 
-        switch (readKey()) {
+        Key k = readKey();
+        warn = "";
+        switch (k) {
             case KEY_UP:    if (*row > 0)        (*row)--; break;
             case KEY_DOWN:  if (*row < ROWS - 1) (*row)++; break;
             case KEY_LEFT:  if (*col > 0)        (*col)--; break;
             case KEY_RIGHT: if (*col < COLS - 1) (*col)++; break;
-            case KEY_ENTER: return 1;
+            case KEY_ENTER:
+                if (isVanished(*row, *col)) {
+                    warn = "That target has vanished! Pick another one.";
+                    break;
+                }
+                return 1;
             case KEY_QUIT:  showCursor(); return 0;
             default: break;
         }
@@ -54,6 +69,8 @@ static int aimShot(const char *title, int *row, int *col) {
 static int playLevel(Player *player, int levelNum) {
     Level lv = getLevel(levelNum);
     int score = 0;
+
+        resetTargets();
 
     for (int shot = 1; shot <= lv.shots; shot++) {
         char title[80];
@@ -76,24 +93,34 @@ static int playLevel(Player *player, int levelNum) {
         // for a hit, the ball ends in landRow; otherwise it just needs the column
         animateShot(title, result == SHOT_HIT ? landRow : row, col, result);
 
-        printf("\x1b[21;1H\x1b[J");
+               printf("\x1b[21;1H\x1b[J");
         int pts = 0;
         if (result == SHOT_HIT) {
-            pts = getPoints(landRow, col);
-            if (landRow == row)
-                printf("PERFECT! The ball hit your target: +%d points!\n", pts);
-            else if (landRow < row)
-                printf("Too much power! The ball landed %d row(s) higher: +%d points.\n",
-                       row - landRow, pts);
-            else
-                printf("Not enough power! The ball landed %d row(s) lower: +%d points.\n",
-                       landRow - row, pts);
+            if (isVanished(landRow, col)) {
+                printf("The ball flew through the gap where a target used to be. No points.\n");
+            } else {
+                pts = getPoints(landRow, col);
+                if (landRow == row)
+                    printf("PERFECT! The ball hit your target: +%d points!\n", pts);
+                else if (landRow < row)
+                    printf("Too much power! The ball landed %d row(s) higher: +%d points.\n",
+                           row - landRow, pts);
+                else
+                    printf("Not enough power! The ball landed %d row(s) lower: +%d points.\n",
+                           landRow - row, pts);
+
+                if (lv.vanish) {
+                    vanishTarget(landRow, col);
+                    printf("That target has vanished!\n");
+                }
+            }
         } else if (result == SHOT_OVER) {
             printf("Way too strong! The ball sailed over the bar. No points.\n");
         } else {
             printf("Way too weak! The ball hit the ground before the goal. No points.\n");
         }
         score += pts;
+
         sleepMs(1600);
         showCursor();
     }
@@ -129,6 +156,9 @@ static void playSession(Player *player, int levelNum) {
         printf("=== LEVEL %d ===\n\n", lv.number);
         printf("Shots: %d\nTarget score: %d\n", lv.shots, lv.targetScore);
         printf("Perfect power zone: %d%% - %d%%\n", lv.sweetMin, lv.sweetMax);
+            if (lv.vanish)
+        printf("\nWARNING: every target you score on vanishes!\n");
+
         printf("\nLock your target, then stop the power bar.\n");
         printf("Green = exact target, lower = lands lower, higher = lands higher.\n");
         pause();
@@ -160,6 +190,8 @@ static int levelPreview(int levelNum) {
     printf("Shots:        %d\n", lv.shots);
     printf("Target score: %d\n", lv.targetScore);
     printf("Exact zone:   %d%% - %d%%\n", lv.sweetMin, lv.sweetMax);
+        if (lv.vanish)
+        printf("\nWARNING: every target you score on vanishes!\n");
 
     return askTwo("Play", "Back to menu") == 1;
 }
@@ -251,7 +283,7 @@ static void gameMenu(Player *player) {
         printf("2. Select level\n");
         printf("3. My stats\n");
         printf("4. Leaderboard\n");
-        printf("5. Quit\n\nChoose: ");
+                printf("5. Log out\n\nChoose: ");
 
         if (scanf("%d", &choice) != 1) {
             while (getchar() != '\n');
@@ -281,9 +313,10 @@ int main(void) {
     Player player;
     initConsole();
 
-    if (loginMenu(&player)) {
-        gameMenu(&player);
+    while (loginMenu(&player)) {
+        gameMenu(&player);      // when this returns, we go back to the login page
     }
+
     printf("\nThanks for playing!\n");
     return 0;
 }
