@@ -1,13 +1,13 @@
 #include <stdio.h>
 #include <string.h>
-#include <time.h>
+
 #include "player.h"
 #include "level.h"
 #include <direct.h>
 
 #define MAX_PLAYERS 100
 #define PLAYER_FILE "data/players.txt"
-#define SCORE_FILE  "data/scores.txt"
+
 
 static void ensureDataDir(void) {
     _mkdir("data");   // does nothing if the folder already exists
@@ -140,19 +140,7 @@ void recordScore(Player *p, int score) {
         p->highScore = score;
         printf("NEW HIGH SCORE: %d!\n", score);
     }
-    savePlayer(p);
-    
-        ensureDataDir();
-    FILE *f = fopen(SCORE_FILE, "a");
-
-    
-    if (f) {
-        time_t now = time(NULL);
-        char date[20];
-        strftime(date, sizeof date, "%Y-%m-%d", localtime(&now));
-        fprintf(f, "%s %d %s\n", p->name, score, date);
-        fclose(f);
-    }
+    savePlayer(p);      // updates this player's line in data/players.txt
 }
 
 void saveProgress(Player *p, int level) {
