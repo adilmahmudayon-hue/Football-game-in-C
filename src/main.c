@@ -27,27 +27,39 @@ static int askTwo(const char *a, const char *b) {
 // Lets the player pick a target cell. Returns 1 if confirmed, 0 if they quit.
 
 // Lets the player pick a target cell. Returns 1 if confirmed, 0 if they quit.
-static int aimShot(const char *title, int *row, int *col) {
+// Lets the player pick a target cell. Returns 1 if confirmed, 0 if they quit.
+static int aimShot(const char *title, int *row, int *col, int sway) {
     *row = 1;
     *col = COLS / 2;
     const char *warn = "";
+    int needDraw = 1;
 
     clearScreen();
     hideCursor();
 
     while (1) {
-        drawGoal(title, *row, *col, 1);
-        if (isVanished(*row, *col))
-            printf("Target: row %d, column %d  =  GONE\x1b[K\n",
-                   *row + 1, *col + 1);
-        else
-            printf("Target: row %d, column %d  =  %d points\x1b[K\n",
-                   *row + 1, *col + 1, getPoints(*row, *col));
-        printf("Arrows: move   Enter: lock target   Q: quit\x1b[K\n");
-        printf("%s\x1b[K\n", warn);
+        if (needDraw) {
+            drawGoal(title, *row, *col, 1);
+            if (isVanished(*row, *col))
+                printf("Target: row %d, column %d  =  GONE\x1b[K\n",
+                       *row + 1, *col + 1);
+            else
+                printf("Target: row %d, column %d  =  %d points\x1b[K\n",
+                       *row + 1, *col + 1, getPoints(*row, *col));
+            printf("Arrows: move   Enter: lock target   Q: quit\x1b[K\n");
+            printf("%s\x1b[K\n", warn);
+            needDraw = 0;
+        }
+
+        if (!keyPressed()) {
+            sleepMs(20);
+            if (moveGoal(sway)) needDraw = 1;
+            continue;
+        }
 
         Key k = readKey();
         warn = "";
+        needDraw = 1;
         switch (k) {
             case KEY_UP:    if (*row > 0)        (*row)--; break;
             case KEY_DOWN:  if (*row < ROWS - 1) (*row)++; break;
@@ -65,12 +77,23 @@ static int aimShot(const char *title, int *row, int *col) {
     }
 }
 
+
+static const char *gTitle;
+static int gRow, gCol, gSway;
+
+static void tickGoal(void) {
+    if (moveGoal(gSway)) drawGoal(gTitle, gRow, gCol, 1);
+}
+
+// Returns 1 = passed, 0 = failed, -1 = quit
 // Returns 1 = passed, 0 = failed, -1 = quit
 static int playLevel(Player *player, int levelNum) {
     Level lv = getLevel(levelNum);
     int score = 0;
 
-        resetTargets();
+    resetTargets();
+    resetGoalPosition();
+    gSway = lv.sway;
 
     for (int shot = 1; shot <= lv.shots; shot++) {
         char title[80];
@@ -79,29 +102,41 @@ static int playLevel(Player *player, int levelNum) {
                  lv.number, shot, lv.shots, score, lv.targetScore);
 
         int row, col;
-        if (!aimShot(title, &row, &col)) return -1;
+        if (!aimShot(title, &row, &col, lv.sway)) return -1;
 
-               // power phase
+        int lockedX = goalCellX(col);     // where the ball will fly
+        gTitle = title;
+        gRow = row;
+        gCol = col;
+
         printf("\x1b[16;1H\x1b[JTarget locked: row %d, column %d (%d points)\n",
                row + 1, col + 1, getPoints(row, col));
-        int power = runPowerBar(17, lv.powerSpeed, lv.sweetMin, lv.sweetMax);
+        if (lv.sway)
+            printf("\x1b[20;1HThe goal is moving! The ball lands where the goal is when you stop the bar.");
+
+        int power = runPowerBar(17, lv.powerSpeed, lv.sweetMin, lv.sweetMax,
+                                tickGoal);
 
         int landRow;
         ShotResult result = judgeShot(power, lv.sweetMin, lv.sweetMax,
                                       row, ROWS, &landRow);
+        int landCol = goalColAt(lockedX);
+        if (result == SHOT_HIT && landCol < 0) result = SHOT_WIDE;
 
-        // for a hit, the ball ends in landRow; otherwise it just needs the column
-        animateShot(title, result == SHOT_HIT ? landRow : row, col, result);
+        animateShot(title, result == SHOT_HIT ? landRow : row, landCol,
+                    lockedX, result);
 
-               printf("\x1b[21;1H\x1b[J");
+        printf("\x1b[21;1H\x1b[J");
         int pts = 0;
         if (result == SHOT_HIT) {
-            if (isVanished(landRow, col)) {
+            if (isVanished(landRow, landCol)) {
                 printf("The ball flew through the gap where a target used to be. No points.\n");
             } else {
-                pts = getPoints(landRow, col);
-                if (landRow == row)
+                pts = getPoints(landRow, landCol);
+                if (landRow == row && landCol == col)
                     printf("PERFECT! The ball hit your target: +%d points!\n", pts);
+                else if (landCol != col)
+                    printf("The goal moved! The ball hit another target: +%d points.\n", pts);
                 else if (landRow < row)
                     printf("Too much power! The ball landed %d row(s) higher: +%d points.\n",
                            row - landRow, pts);
@@ -110,17 +145,18 @@ static int playLevel(Player *player, int levelNum) {
                            landRow - row, pts);
 
                 if (lv.vanish) {
-                    vanishTarget(landRow, col);
+                    vanishTarget(landRow, landCol);
                     printf("That target has vanished!\n");
                 }
             }
+        } else if (result == SHOT_WIDE) {
+            printf("The goal moved away! The ball missed wide of the post. No points.\n");
         } else if (result == SHOT_OVER) {
             printf("Way too strong! The ball sailed over the bar. No points.\n");
         } else {
             printf("Way too weak! The ball hit the ground before the goal. No points.\n");
         }
         score += pts;
-
         sleepMs(1600);
         showCursor();
     }
@@ -132,21 +168,18 @@ static int playLevel(Player *player, int levelNum) {
     int passed = (score >= lv.targetScore);
     recordScore(player, score);
 
-    
-        if (passed) {
+    if (passed) {
         printf("LEVEL COMPLETE!\n");
         if (levelNum < MAX_LEVEL && levelNum + 1 > player->level) {
-            saveProgress(player, levelNum + 1);     // only ever move forward
+            saveProgress(player, levelNum + 1);
             printf("Level %d unlocked.\n", levelNum + 1);
         }
         return 1;
     }
-
     printf("Level failed. You needed %d more points.\n",
            lv.targetScore - score);
     return 0;
 }
-
 
 static void playSession(Player *player, int levelNum) {
     while (1) {
@@ -158,7 +191,10 @@ static void playSession(Player *player, int levelNum) {
         printf("Perfect power zone: %d%% - %d%%\n", lv.sweetMin, lv.sweetMax);
             if (lv.vanish)
         printf("\nWARNING: every target you score on vanishes!\n");
-
+         
+            if (lv.sway)
+        printf("WARNING: the goal moves left and right!\n");
+        
         printf("\nLock your target, then stop the power bar.\n");
         printf("Green = exact target, lower = lands lower, higher = lands higher.\n");
         pause();

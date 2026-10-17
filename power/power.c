@@ -30,7 +30,8 @@ static void drawBar(int line, int power, int sweetMin, int sweetMax) {
     fflush(stdout);
 }
 
-int runPowerBar(int line, int speed, int sweetMin, int sweetMax) {
+int runPowerBar(int line, int speed, int sweetMin, int sweetMax,
+                void (*onTick)(void)) {
     int power = 0;
     int dir = 1;
 
@@ -41,8 +42,10 @@ int runPowerBar(int line, int speed, int sweetMin, int sweetMax) {
            
     printf("\x1b[%d;1H  Press any key to shoot!\x1b[K", line + 2);
 
-    while (1) {
+       while (1) {
+        if (onTick) onTick();
         drawBar(line, power, sweetMin, sweetMax);
+        
 
         if (_kbhit()) {
             while (_kbhit()) _getch();    // clear the key (arrow keys send 2 codes)

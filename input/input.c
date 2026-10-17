@@ -13,7 +13,12 @@ Key readKey(void) {
         }
         return KEY_OTHER;
     }
+
     if (ch == 13) return KEY_ENTER;
     if (ch == 'q' || ch == 'Q') return KEY_QUIT;
     return KEY_OTHER;
+}   // readKey ends here
+
+int keyPressed(void) {
+    return _kbhit();
 }

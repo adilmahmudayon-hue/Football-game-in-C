@@ -6,16 +6,22 @@
 #define ROWS 4
 #define COLS 9
 
-// Draws the whole goal scene. cursorRow/cursorCol = -1 means no highlight.
 void drawGoal(const char *title, int cursorRow, int cursorCol, int showBall);
 
-// Flies the ball from the penalty spot depending on the shot result.
-void animateShot(const char *title, int row, int col, ShotResult result);
+// targetX = screen column the ball flies to. row/col = cell it lands in
+// (col is -1 if the ball misses the goal).
+void animateShot(const char *title, int row, int col, int targetX,
+                 ShotResult result);
 
-void resetTargets(void);                  // bring all targets back
-void vanishTarget(int row, int col);      // remove one target
-int  isVanished(int row, int col);        // 1 if the target is gone
+int  getPoints(int row, int col);
 
-int getPoints(int row, int col);
+void resetTargets(void);
+void vanishTarget(int row, int col);
+int  isVanished(int row, int col);
+
+void resetGoalPosition(void);      // put the goal back in the middle
+int  moveGoal(int framesPerStep);  // returns 1 if the goal moved
+int  goalCellX(int col);           // screen column of a cell's center
+int  goalColAt(int x);             // which column is at screen column x, or -1
 
 #endif

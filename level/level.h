@@ -1,7 +1,7 @@
 #ifndef LEVEL_H
 #define LEVEL_H
 
-#define MAX_LEVEL 10
+#define MAX_LEVEL 15
 
 typedef struct {
     int number;
@@ -11,6 +11,7 @@ typedef struct {
     int sweetMin;      // exact zone start (0-100)
     int sweetMax;      // exact zone end (0-100)
     int vanish;        // 1 = a scored target disappears
+    int sway;          // 0 = goal stands still, else frames per step (lower = faster)
 } Level;
 
 Level getLevel(int number);

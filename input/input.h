@@ -8,4 +8,6 @@ typedef enum {
 
 Key readKey(void);
 
+int keyPressed(void);   // 1 if a key is waiting (does not block)
+
 #endif
