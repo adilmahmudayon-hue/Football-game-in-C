@@ -16,4 +16,6 @@ typedef struct {
 
 Level getLevel(int number);
 
+const char *getTierName(int levelNumber);   // Beginner, Easy, Medium, Hard, Pro
+
 #endif

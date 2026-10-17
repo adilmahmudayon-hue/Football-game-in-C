@@ -97,10 +97,11 @@ static int playLevel(Player *player, int levelNum) {
 
     for (int shot = 1; shot <= lv.shots; shot++) {
         char title[80];
-        snprintf(title, sizeof title,
-                 "LEVEL %d | Shot %d/%d | Score %d/%d",
-                 lv.number, shot, lv.shots, score, lv.targetScore);
-
+               snprintf(title, sizeof title,
+                 "LEVEL %d (%s) | Shot %d/%d | Score %d/%d",
+                 lv.number, getTierName(lv.number), shot, lv.shots,
+                 score, lv.targetScore);
+                 
         int row, col;
         if (!aimShot(title, &row, &col, lv.sway)) return -1;
 
@@ -186,7 +187,7 @@ static void playSession(Player *player, int levelNum) {
         Level lv = getLevel(levelNum);
 
         clearScreen();
-        printf("=== LEVEL %d ===\n\n", lv.number);
+                printf("=== LEVEL %d - %s ===\n\n", lv.number, getTierName(lv.number));
         printf("Shots: %d\nTarget score: %d\n", lv.shots, lv.targetScore);
         printf("Perfect power zone: %d%% - %d%%\n", lv.sweetMin, lv.sweetMax);
             if (lv.vanish)
@@ -222,7 +223,7 @@ static int levelPreview(int levelNum) {
     Level lv = getLevel(levelNum);
 
     clearScreen();
-    printf("=== LEVEL %d ===\n\n", lv.number);
+        printf("=== LEVEL %d - %s ===\n\n", lv.number, getTierName(lv.number));
     printf("Shots:        %d\n", lv.shots);
     printf("Target score: %d\n", lv.targetScore);
     printf("Exact zone:   %d%% - %d%%\n", lv.sweetMin, lv.sweetMax);
@@ -249,8 +250,9 @@ static void levelSelect(Player *player) {
             else if (n == player->level) status = "UNLOCKED (current)";
             else                         status = "COMPLETED";
 
-            printf("  %d. Level %d   target %2d   zone %d%%-%d%%   [%s]\n",
-                   n, n, lv.targetScore, lv.sweetMin, lv.sweetMax, status);
+                        printf("  %2d. %-8s  target %2d   zone %d%%-%d%%   [%s]\n",
+                   n, getTierName(n), lv.targetScore,
+                   lv.sweetMin, lv.sweetMax, status);
         }
         printf("\n  0. Back\n\nChoose a level: ");
 
@@ -312,9 +314,10 @@ static void gameMenu(Player *player) {
 
     while (1) {
         clearScreen();
-               printf("=== MENU ===\n\n");
+                     printf("=== MENU ===\n\n");
         printf("Player: %s\n", player->name);
-        printf("Level:  %d\n\n", player->level);
+        printf("Level:  %d\n", player->level);
+        printf("Rank:   %s\n\n", getTierName(player->level));
         printf("1. Play (continue level %d)\n", player->level);
         printf("2. Select level\n");
         printf("3. My stats\n");

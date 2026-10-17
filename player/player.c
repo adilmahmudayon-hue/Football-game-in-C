@@ -150,7 +150,7 @@ void saveProgress(Player *p, int level) {
 
 void showStats(const Player *p) {
     printf("Player:       %s\n", p->name);
-    printf("Level:        %d / %d\n", p->level, MAX_LEVEL);
+        printf("Level:        %d / %d (%s)\n", p->level, MAX_LEVEL, getTierName(p->level));
     printf("High score:   %d\n", p->highScore);
     printf("Games played: %d\n", p->gamesPlayed);
     printf("Total score:  %d\n", p->totalScore);

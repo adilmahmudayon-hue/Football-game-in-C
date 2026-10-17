@@ -16,10 +16,10 @@
 #define BALL_X (31 + MARGIN)      // penalty spot, under the middle of the goal
 
 static int points[ROWS][COLS] = {
-    {5, 3, 2, 1, 1, 1, 2, 3, 5},
-    {3, 2, 1, 1, 1, 1, 1, 2, 3},
-    {3, 2, 1, 1, 1, 1, 1, 2, 3},
-    {2, 1, 1, 1, 1, 1, 1, 1, 2}
+    {5, 4, 3, 2, 3, 2, 3, 4, 5},
+    {4, 3, 2, 1, 2, 1, 2, 3, 4},
+    {4, 3, 2, 2, 1, 2, 2, 3, 4},
+    {3, 2, 2, 1, 2, 1, 2, 2, 3}
 };
 
 static int vanished[ROWS][COLS];
@@ -70,8 +70,10 @@ int goalColAt(int x) {
     return off / 6;
 }
 
+
 static const char *pointColor(int p) {
     if (p >= 5) return RED;
+    if (p >= 3) return "\x1b[1;33m";   // bright yellow for 3-4
     if (p >= 2) return YELLOW;
     return GRAY;
 }
