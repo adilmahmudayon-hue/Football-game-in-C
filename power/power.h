@@ -2,10 +2,11 @@
 #define POWER_H
 
 typedef enum {
-    SHOT_HIT,      // landed inside the goal grid
-    SHOT_OVER,     // went over the crossbar
-    SHOT_UNDER,    // hit the ground before the goal
-    SHOT_WIDE      // missed the goal sideways
+    SHOT_HIT,
+    SHOT_OVER,
+    SHOT_UNDER,
+    SHOT_WIDE,
+    SHOT_SAVED     // stopped by the goalkeeper
 } ShotResult;
 
 // Runs the power bar. onTick (can be NULL) is called every frame,

@@ -28,7 +28,8 @@ static int askTwo(const char *a, const char *b) {
 
 // Lets the player pick a target cell. Returns 1 if confirmed, 0 if they quit.
 // Lets the player pick a target cell. Returns 1 if confirmed, 0 if they quit.
-static int aimShot(const char *title, int *row, int *col, int sway) {
+// Lets the player pick a target cell. Returns 1 if confirmed, 0 if they quit.
+static int aimShot(const char *title, int *row, int *col, const Level *lv) {
     *row = 1;
     *col = COLS / 2;
     const char *warn = "";
@@ -53,7 +54,8 @@ static int aimShot(const char *title, int *row, int *col, int sway) {
 
         if (!keyPressed()) {
             sleepMs(20);
-            if (moveGoal(sway)) needDraw = 1;
+            if (moveGoal(lv->sway)) needDraw = 1;
+            if (moveKeeper(lv->keeperSpeed)) needDraw = 1;
             continue;
         }
 
@@ -77,15 +79,16 @@ static int aimShot(const char *title, int *row, int *col, int sway) {
     }
 }
 
-
 static const char *gTitle;
-static int gRow, gCol, gSway;
+static int gRow, gCol, gSway, gKeeperSpeed;
 
 static void tickGoal(void) {
-    if (moveGoal(gSway)) drawGoal(gTitle, gRow, gCol, 1);
+    int moved = 0;
+    if (moveGoal(gSway)) moved = 1;
+    if (moveKeeper(gKeeperSpeed)) moved = 1;
+    if (moved) drawGoal(gTitle, gRow, gCol, 1);
 }
 
-// Returns 1 = passed, 0 = failed, -1 = quit
 // Returns 1 = passed, 0 = failed, -1 = quit
 static int playLevel(Player *player, int levelNum) {
     Level lv = getLevel(levelNum);
@@ -93,19 +96,21 @@ static int playLevel(Player *player, int levelNum) {
 
     resetTargets();
     resetGoalPosition();
+    resetKeeper(lv.keeperRows);
     gSway = lv.sway;
+    gKeeperSpeed = lv.keeperSpeed;
 
     for (int shot = 1; shot <= lv.shots; shot++) {
         char title[80];
-               snprintf(title, sizeof title,
+        snprintf(title, sizeof title,
                  "LEVEL %d (%s) | Shot %d/%d | Score %d/%d",
                  lv.number, getTierName(lv.number), shot, lv.shots,
                  score, lv.targetScore);
-                 
-        int row, col;
-        if (!aimShot(title, &row, &col, lv.sway)) return -1;
 
-        int lockedX = goalCellX(col);     // where the ball will fly
+        int row, col;
+        if (!aimShot(title, &row, &col, &lv)) return -1;
+
+        int lockedX = goalCellX(col);
         gTitle = title;
         gRow = row;
         gCol = col;
@@ -123,13 +128,20 @@ static int playLevel(Player *player, int levelNum) {
                                       row, ROWS, &landRow);
         int landCol = goalColAt(lockedX);
         if (result == SHOT_HIT && landCol < 0) result = SHOT_WIDE;
+        if (result == SHOT_HIT && keeperCovers(landRow, landCol))
+            result = SHOT_SAVED;
 
-        animateShot(title, result == SHOT_HIT ? landRow : row, landCol,
-                    lockedX, result);
+        int landed = (result == SHOT_HIT || result == SHOT_SAVED);
+        animateShot(title, landed ? landRow : row, landCol, lockedX, result);
 
         printf("\x1b[21;1H\x1b[J");
         int pts = 0;
-        if (result == SHOT_HIT) {
+        if (result == SHOT_SAVED) {
+            if (keeperCaught(landCol))
+                printf("SAVED! The goalkeeper caught the ball. No points.\n");
+            else
+                printf("SAVED! The goalkeeper pushed the ball away. No points.\n");
+        } else if (result == SHOT_HIT) {
             if (isVanished(landRow, landCol)) {
                 printf("The ball flew through the gap where a target used to be. No points.\n");
             } else {
@@ -195,6 +207,9 @@ static void playSession(Player *player, int levelNum) {
          
             if (lv.sway)
         printf("WARNING: the goal moves left and right!\n");
+
+            if (lv.keeperRows)
+        printf("WARNING: a goalkeeper guards the goal!\n");
         
         printf("\nLock your target, then stop the power bar.\n");
         printf("Green = exact target, lower = lands lower, higher = lands higher.\n");
@@ -229,6 +244,9 @@ static int levelPreview(int levelNum) {
     printf("Exact zone:   %d%% - %d%%\n", lv.sweetMin, lv.sweetMax);
         if (lv.vanish)
         printf("\nWARNING: every target you score on vanishes!\n");
+
+            if (lv.keeperRows)
+        printf("WARNING: a goalkeeper guards the goal!\n");
 
     return askTwo("Play", "Back to menu") == 1;
 }

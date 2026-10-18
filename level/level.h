@@ -7,11 +7,13 @@ typedef struct {
     int number;
     int shots;
     int targetScore;
-    int powerSpeed;    // bar speed (higher = faster)
-    int sweetMin;      // exact zone start (0-100)
-    int sweetMax;      // exact zone end (0-100)
-    int vanish;        // 1 = a scored target disappears
-    int sway;          // 0 = goal stands still, else frames per step (lower = faster)
+    int powerSpeed;
+    int sweetMin;
+    int sweetMax;
+    int vanish;
+    int sway;
+    int keeperSpeed;   // frames per step (lower = faster)
+    int keeperRows;    // rows he covers from the bottom (0 = no keeper)
 } Level;
 
 Level getLevel(int number);
