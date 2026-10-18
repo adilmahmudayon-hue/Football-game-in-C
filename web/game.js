@@ -4,6 +4,7 @@ const ctx = canvas.getContext("2d");
 // ---------- data (same as the C game) ----------
 const ROWS = 4;
 const COLS = 9;
+const KEEPER_W = 3;
 const points = [
   [5, 4, 3, 2, 3, 2, 3, 4, 5],
   [4, 3, 2, 1, 2, 1, 2, 3, 4],
@@ -11,7 +12,6 @@ const points = [
   [3, 2, 2, 1, 2, 1, 2, 2, 3],
 ];
 
-// Level 1 settings (more levels in the next step)
 let level = LEVELS[0];
 let running = false;
 let currentLevelNum = 1;
@@ -44,10 +44,39 @@ let powerDir = 1;
 let message = "";
 let resultTimer = 0;
 
-// flight
-let flight = null; // { from, to, arc, t, duration, endRadius }
+let flight = null;
 let pendingPoints = 0;
 let pendingText = "";
+
+// goalkeeper
+let keeperX = (COLS - KEEPER_W) / 2; // left edge, in columns (can be fractional)
+let keeperDir = 1;
+
+// ---------- goalkeeper ----------
+function resetKeeper() {
+  keeperX = (COLS - KEEPER_W) / 2;
+  keeperDir = 1;
+}
+
+function moveKeeper(dt) {
+  if (!level.keeperRows) return;
+  keeperX += (keeperDir * dt) / level.keeperStep;
+  const max = COLS - KEEPER_W;
+  if (keeperX >= max) { keeperX = max; keeperDir = -1; }
+  else if (keeperX <= 0) { keeperX = 0; keeperDir = 1; }
+}
+
+const keeperLeft = () => Math.round(keeperX);
+
+function keeperCovers(row, col) {
+  if (!level.keeperRows) return false;
+  if (row < ROWS - level.keeperRows) return false;
+  const k = keeperLeft();
+  return col >= k && col < k + KEEPER_W;
+}
+
+// middle column = clean catch
+const keeperCaught = (col) => col === keeperLeft() + 1;
 
 // ---------- game rules ----------
 function judgeShot(p, targetRow) {
@@ -63,13 +92,41 @@ function judgeShot(p, targetRow) {
   return { type: "hit", landRow };
 }
 
+function makeFlight(toX, toY, arc, endRadius, duration) {
+  return { fromX: BALL_X, fromY: BALL_Y, toX, toY, arc,
+           startRadius: BALL_R, endRadius, t: 0, duration, next: null };
+}
+
 function launchShot() {
   const p = Math.round(power);
   const res = judgeShot(p, cursorRow);
   const x = cellX(cursorCol);
 
-  if (res.type === "hit") {
-    flight = { toX: x, toY: cellY(res.landRow), arc: 90, endRadius: 14 };
+  if (res.type === "hit" && keeperCovers(res.landRow, cursorCol)) {
+    // the goalkeeper gets there first
+    const y = cellY(res.landRow);
+    flight = makeFlight(x, y, 90, 14, 0.8);
+    const caught = keeperCaught(cursorCol);
+    const next = { fromX: x, fromY: y, startRadius: 14, endRadius: 14,
+                   t: 0, next: null };
+    if (caught) {
+      next.toX = x;
+      next.toY = GROUND_Y - 12;
+      next.arc = 20;
+      next.duration = 0.35;
+      pendingText = "SAVED! The goalkeeper caught the ball. No points.";
+    } else {
+      const side = cursorCol < keeperLeft() + 1 ? -1 : 1;
+      next.toX = x + side * 170;
+      next.toY = GROUND_Y + 25;
+      next.arc = 60;
+      next.duration = 0.55;
+      pendingText = "SAVED! The goalkeeper pushed the ball away. No points.";
+    }
+    flight.next = next;
+    pendingPoints = 0;
+  } else if (res.type === "hit") {
+    flight = makeFlight(x, cellY(res.landRow), 90, 14, 0.9);
     pendingPoints = points[res.landRow][cursorCol];
     if (res.landRow === cursorRow) {
       pendingText = "PERFECT! +" + pendingPoints + " points";
@@ -81,24 +138,20 @@ function launchShot() {
         " row(s) lower: +" + pendingPoints;
     }
   } else if (res.type === "over") {
-    flight = { toX: x, toY: -80, arc: 0, endRadius: 8 };
+    flight = makeFlight(x, -80, 0, 8, 0.9);
     pendingPoints = 0;
     pendingText = "Way too strong! The ball sailed over the bar.";
   } else {
-    flight = { toX: x, toY: GROUND_Y + 40, arc: 60, endRadius: 14 };
+    flight = makeFlight(x, GROUND_Y + 40, 60, 14, 0.9);
     pendingPoints = 0;
     pendingText = "Way too weak! The ball hit the ground before the goal.";
   }
-  flight.fromX = BALL_X;
-  flight.fromY = BALL_Y;
-  flight.t = 0;
-  flight.duration = 0.9;
   state = "flying";
 }
 
 function startNextShotOrFinish() {
   if (shot >= level.shots) {
-        state = "done";
+    state = "done";
     finishLevel();
   } else {
     shot++;
@@ -117,6 +170,7 @@ function restart() {
   message = "";
   cursorRow = 1;
   cursorCol = Math.floor(COLS / 2);
+  resetKeeper();
   state = "aim";
 }
 
@@ -135,7 +189,7 @@ function finishLevel() {
 // ---------- input ----------
 document.addEventListener("keydown", (e) => {
   const k = e.key;
-    if (!running) return;
+  if (!running) return;
   if (k === "Escape") { quitToMenu(); e.preventDefault(); return; }
   const isAction = k === "Enter" || k === " ";
 
@@ -152,8 +206,6 @@ document.addEventListener("keydown", (e) => {
   } else if (state === "power") {
     if (!isAction) return;
     launchShot();
-    } else if (state === "done") {
-    return;
   } else {
     return;
   }
@@ -162,18 +214,27 @@ document.addEventListener("keydown", (e) => {
 
 // ---------- update ----------
 function update(dt) {
-  if (state === "power") {
+  if (!running) return;
+
+  if (state === "aim") {
+    moveKeeper(dt);
+  } else if (state === "power") {
+    moveKeeper(dt);
     power += powerDir * level.speed * 50 * dt; // speed 2 = 100% per second
     if (power >= 100) { power = 100; powerDir = -1; }
     else if (power <= 0) { power = 0; powerDir = 1; }
   } else if (state === "flying") {
     flight.t += dt / flight.duration;
     if (flight.t >= 1) {
-      flight.t = 1;
-      score += pendingPoints;
-      message = pendingText;
-      state = "result";
-      resultTimer = 1.6;
+      if (flight.next) {
+        flight = flight.next;
+      } else {
+        flight.t = 1;
+        score += pendingPoints;
+        message = pendingText;
+        state = "result";
+        resultTimer = 1.6;
+      }
     }
   } else if (state === "result") {
     resultTimer -= dt;
@@ -234,6 +295,76 @@ function drawPoints() {
   }
 }
 
+function drawKeeper() {
+  if (!level.keeperRows) return;
+
+  const w = KEEPER_W * CELL_W;
+  const h = level.keeperRows * CELL_H;
+  const x = GOAL_X + keeperX * CELL_W;
+  const y = GROUND_Y - h;
+  const cx = x + w / 2;
+
+  // soft shadow on the ground
+  ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+  ctx.beginPath();
+  ctx.ellipse(cx, GROUND_Y - 2, 60, 9, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  // legs
+  ctx.strokeStyle = "#1c6f86";
+  ctx.lineWidth = 16;
+  ctx.beginPath();
+  ctx.moveTo(cx - 12, y + h * 0.62);
+  ctx.lineTo(cx - 22, GROUND_Y - 6);
+  ctx.moveTo(cx + 12, y + h * 0.62);
+  ctx.lineTo(cx + 22, GROUND_Y - 6);
+  ctx.stroke();
+
+  // arms, stretched out wide
+  ctx.strokeStyle = "#35c4e8";
+  ctx.lineWidth = 14;
+  ctx.beginPath();
+  ctx.moveTo(cx - 24, y + h * 0.3);
+  ctx.lineTo(cx - 100, y + h * 0.14);
+  ctx.moveTo(cx + 24, y + h * 0.3);
+  ctx.lineTo(cx + 100, y + h * 0.14);
+  ctx.stroke();
+
+  // gloves
+  ctx.fillStyle = "#ffd23f";
+  ctx.beginPath();
+  ctx.arc(cx - 104, y + h * 0.13, 14, 0, Math.PI * 2);
+  ctx.arc(cx + 104, y + h * 0.13, 14, 0, Math.PI * 2);
+  ctx.fill();
+
+  // torso
+  ctx.fillStyle = "#35c4e8";
+  ctx.strokeStyle = "#e9fbff";
+  ctx.lineWidth = 3;
+  const tw = 56, th = h * 0.42, ty = y + h * 0.22;
+  ctx.beginPath();
+  ctx.rect(cx - tw / 2, ty, tw, th);
+  ctx.fill();
+  ctx.stroke();
+
+  // head
+  ctx.fillStyle = "#f2c9a0";
+  ctx.beginPath();
+  ctx.arc(cx, y + h * 0.13, 18, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#222";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = "#222";
+  ctx.beginPath();
+  ctx.arc(cx - 6, y + h * 0.12, 2.5, 0, Math.PI * 2);
+  ctx.arc(cx + 6, y + h * 0.12, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+}
+
 function drawCursor() {
   const x = GOAL_X + cursorCol * CELL_W;
   const y = GOAL_Y + cursorRow * CELL_H;
@@ -243,6 +374,15 @@ function drawCursor() {
   ctx.strokeStyle = locked ? "#50dc78" : "#ffd23f";
   ctx.lineWidth = 4;
   ctx.strokeRect(x + 2, y + 2, CELL_W - 4, CELL_H - 4);
+
+  // show the target's points on top of the keeper too
+  if (keeperCovers(cursorRow, cursorCol)) {
+    ctx.font = "bold 26px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(points[cursorRow][cursorCol], cellX(cursorCol), cellY(cursorRow));
+  }
 }
 
 function drawPosts() {
@@ -286,7 +426,7 @@ function drawFlyingBall() {
   const x = flight.fromX + (flight.toX - flight.fromX) * t;
   const y = flight.fromY + (flight.toY - flight.fromY) * t
             - 4 * flight.arc * t * (1 - t);
-  const r = BALL_R + (flight.endRadius - BALL_R) * t; // shrinks = further away
+  const r = flight.startRadius + (flight.endRadius - flight.startRadius) * t;
   drawBall(x, y, Math.max(r, 4));
 }
 
@@ -296,11 +436,10 @@ function drawPowerBar() {
     ctx.fillStyle = color;
     ctx.fillRect(x + (a / 100) * w, y, ((b - a) / 100) * w, h);
   };
-  zone(0, level.sweetMin, "#a9791c");               // lower
-  zone(level.sweetMin, level.sweetMax, "#2fbf5b");  // exact
-  zone(level.sweetMax, 100, "#b3362f");             // higher
+  zone(0, level.sweetMin, "#a9791c");
+  zone(level.sweetMin, level.sweetMax, "#2fbf5b");
+  zone(level.sweetMax, 100, "#b3362f");
 
-  // marker
   const mx = x + (power / 100) * w;
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(mx - 3, y - 6, 6, h + 12);
@@ -311,6 +450,7 @@ function drawPowerBar() {
 
   ctx.font = "14px Arial";
   ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
   ctx.fillStyle = "#ffffff";
   ctx.fillText("lower", x + (level.sweetMin / 200) * w, y - 12);
   ctx.fillText("exact", x + ((level.sweetMin + level.sweetMax) / 200) * w, y - 12);
@@ -322,7 +462,7 @@ function drawHud() {
   ctx.fillStyle = "#ffffff";
   ctx.font = "bold 20px Arial";
   ctx.textAlign = "left";
-    ctx.fillText("LEVEL " + currentLevelNum + "  |  Shot " + shot + "/" + level.shots, 20, 30);
+  ctx.fillText("LEVEL " + currentLevelNum + "  |  Shot " + shot + "/" + level.shots, 20, 30);
   ctx.textAlign = "right";
   ctx.fillText("Score " + score + " / " + level.target, canvas.width - 20, 30);
 
@@ -344,44 +484,22 @@ function drawHud() {
   }
 }
 
-function drawDone() {
-  ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  const passed = score >= level.target;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillStyle = passed ? "#50dc78" : "#ff6b5f";
-  ctx.font = "bold 44px Arial";
-  ctx.fillText(passed ? "LEVEL COMPLETE!" : "LEVEL FAILED", canvas.width / 2, 220);
-
-  ctx.fillStyle = "#ffffff";
-  ctx.font = "26px Arial";
-  ctx.fillText("Your score: " + score + "   Target: " + level.target,
-               canvas.width / 2, 290);
-  ctx.font = "20px Arial";
-  ctx.fillText("Press Enter to play again", canvas.width / 2, 350);
-}
-
 function draw() {
   drawBackground();
   drawNet();
   drawPoints();
+  drawKeeper();
   drawCursor();
   drawPosts();
 
-  if (state === "flying" || state === "result") {
-    if (flight) {
-      // after landing the ball stays where it ended
-      drawFlyingBall();
-    }
+  if ((state === "flying" || state === "result") && flight) {
+    drawFlyingBall();
   } else {
     drawBall(BALL_X, BALL_Y, BALL_R);
   }
 
   if (state === "power") drawPowerBar();
   drawHud();
-  
 }
 
 // ---------- main loop ----------
