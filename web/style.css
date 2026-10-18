@@ -82,3 +82,19 @@ canvas {
 
 table { width: 100%; border-collapse: collapse; margin: 10px 0; }
 td, th { padding: 6px; border-bottom: 1px solid #2c3541; text-align: left; }
+
+#quitBtn {
+  display: none;
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  font-size: 14px;
+  border: 0;
+  border-radius: 6px;
+  background: rgba(179, 54, 47, 0.9);
+  color: #fff;
+  cursor: pointer;
+}
+#quitBtn:hover { background: #d4423a; }

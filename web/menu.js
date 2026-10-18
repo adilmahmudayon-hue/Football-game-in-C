@@ -1,21 +1,24 @@
-const USERS_KEY = "fs_users";
 const ui = document.getElementById("ui");
+const quitBtn = document.getElementById("quitBtn");
 let user = null;
+let token = null;
 
-// ---------- storage ----------
-function loadUsers() {
-  try { return JSON.parse(localStorage.getItem(USERS_KEY)) || []; }
-  catch (e) { return []; }
+quitBtn.onclick = () => quitToMenu();
+
+// ---------- server calls ----------
+async function api(route, body) {
+  try {
+    const res = await fetch("/api/" + route, {
+      method: body ? "POST" : "GET",
+      headers: { "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    return await res.json();
+  } catch (e) {
+    return { error: "Cannot reach the server. Run 'node server.js' and open http://localhost:3000" };
+  }
 }
-function saveUsers(list) {
-  localStorage.setItem(USERS_KEY, JSON.stringify(list));
-}
-function saveUser() {
-  const list = loadUsers();
-  const i = list.findIndex((u) => u.name === user.name);
-  if (i >= 0) list[i] = user; else list.push(user);
-  saveUsers(list);
-}
+
 function esc(s) {
   return String(s).replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -23,6 +26,7 @@ function esc(s) {
 
 // ---------- helpers ----------
 function show(html, solid) {
+  quitBtn.style.display = "none";
   ui.className = solid === false ? "clear" : "solid";
   ui.innerHTML = html;
   ui.style.display = "flex";
@@ -35,45 +39,66 @@ function showLogin(msg) {
   show(`<div class="panel">
     <h1>FOOTBALL SHOOTOUT</h1>
     <p>Log in or create an account</p>
-    <input id="u" placeholder="Username" maxlength="20" autocomplete="username">
-    <input id="p" type="password" placeholder="Password" maxlength="20">
+    <input id="u" placeholder="Username" maxlength="19" autocomplete="username">
+    <input id="p" type="password" placeholder="Password" maxlength="19">
     <p class="msg">${esc(msg || "")}</p>
     <button id="login">Login</button>
     <button id="reg" class="secondary">Register</button>
     <button id="lb" class="secondary">Leaderboard</button>
+    <button id="quit" class="secondary">Quit</button>
   </div>`);
   on("login", doLogin);
   on("reg", doRegister);
   on("lb", () => showLeaderboard(() => showLogin()));
+  on("quit", showGoodbye);
   document.getElementById("p").onkeydown = (e) => {
     if (e.key === "Enter") doLogin();
   };
 }
 
+function showGoodbye() {
+  show(`<div class="panel">
+    <h1>Thanks for playing!</h1>
+    <p>You can close this tab now.</p>
+    <button id="again">Back to login</button>
+  </div>`);
+  on("again", () => showLogin());
+}
+
 function readCredentials() {
-  const name = document.getElementById("u").value.trim();
-  const pass = document.getElementById("p").value;
-  return { name, pass };
+  return {
+    name: document.getElementById("u").value.trim(),
+    password: document.getElementById("p").value,
+  };
 }
 
-function doLogin() {
-  const { name, pass } = readCredentials();
-  const found = loadUsers().find((u) => u.name === name && u.password === pass);
-  if (!found) return showLogin("Wrong username or password.");
-  user = found;
+async function doLogin() {
+  const c = readCredentials();
+  if (!c.name || !c.password) return showLogin("Enter a username and a password.");
+  const r = await api("login", c);
+  if (r.error) return showLogin(r.error);
+  user = r.user;
+  token = r.token;
   showMenu();
 }
 
-function doRegister() {
-  const { name, pass } = readCredentials();
-  if (!name || !pass) return showLogin("Enter a username and a password.");
-  if (/\s/.test(name)) return showLogin("Username can't contain spaces.");
-  if (loadUsers().some((u) => u.name === name))
-    return showLogin("That username is already taken.");
-  user = { name, password: pass, highScore: 0, gamesPlayed: 0,
-           totalScore: 0, level: 1 };
-  saveUser();
+async function doRegister() {
+  const c = readCredentials();
+  if (!c.name || !c.password) return showLogin("Enter a username and a password.");
+  if (/\s/.test(c.name) || /\s/.test(c.password))
+    return showLogin("No spaces allowed in the username or password.");
+  const r = await api("register", c);
+  if (r.error) return showLogin(r.error);
+  user = r.user;
+  token = r.token;
   showMenu();
+}
+
+async function logout() {
+  if (token) await api("logout", { token });
+  user = null;
+  token = null;
+  showLogin();
 }
 
 // ---------- menus ----------
@@ -87,12 +112,14 @@ function showMenu() {
     <button id="stats" class="secondary">My stats</button>
     <button id="lb" class="secondary">Leaderboard</button>
     <button id="out" class="secondary">Log out</button>
+    <button id="quit" class="secondary">Quit game</button>
   </div>`);
   on("play", () => startPlay(user.level));
   on("sel", () => showLevels());
   on("stats", showStats);
   on("lb", () => showLeaderboard(showMenu));
-  on("out", () => { user = null; showLogin(); });
+  on("out", logout);
+  on("quit", async () => { await logout(); showGoodbye(); });
 }
 
 function showLevels(msg) {
@@ -156,13 +183,17 @@ function showStats() {
   on("back", showMenu);
 }
 
-function showLeaderboard(backFn) {
-  const top = loadUsers().slice()
-    .sort((a, b) => b.highScore - a.highScore).slice(0, 5);
-  let rows = top.map((u, i) =>
-    `<tr><td>${i + 1}</td><td>${esc(u.name)}</td><td>${u.highScore}</td>
-     <td>L${u.level}</td></tr>`).join("");
-  if (!rows) rows = `<tr><td colspan="4">No players yet.</td></tr>`;
+async function showLeaderboard(backFn) {
+  const r = await api("leaderboard");
+  let rows;
+  if (r.error) {
+    rows = `<tr><td colspan="4">${esc(r.error)}</td></tr>`;
+  } else {
+    rows = r.top.map((u, i) =>
+      `<tr><td>${i + 1}</td><td>${esc(u.name)}</td><td>${u.highScore}</td>
+       <td>L${u.level}</td></tr>`).join("");
+    if (!rows) rows = `<tr><td colspan="4">No players yet.</td></tr>`;
+  }
   show(`<div class="panel">
     <h2>TOP PLAYERS</h2>
     <table><tr><th>#</th><th>Name</th><th>Best</th><th>Level</th></tr>${rows}</table>
@@ -174,6 +205,7 @@ function showLeaderboard(backFn) {
 // ---------- playing ----------
 function startPlay(n) {
   hide();
+  quitBtn.style.display = "block";
   startLevel(n);
 }
 
@@ -182,19 +214,21 @@ function quitToMenu() {
   showMenu();
 }
 
-onLevelEnd = function (passed, score) {
+onLevelEnd = async function (passed, score) {
   const n = currentLevelNum;
+  quitBtn.style.display = "none";
 
-  user.gamesPlayed++;
-  user.totalScore += score;
-  let newBest = false;
-  if (score > user.highScore) { user.highScore = score; newBest = true; }
-  let unlocked = false;
-  if (passed && n < MAX_LEVEL && n + 1 > user.level) {
-    user.level = n + 1;
-    unlocked = true;
+  const r = await api("save", { token, level: n, score, passed });
+  if (r.error) {
+    show(`<div class="panel">
+      <h2>Could not save</h2>
+      <p class="msg">${esc(r.error)}</p>
+      <button id="menu">Back to menu</button>
+    </div>`, false);
+    on("menu", showMenu);
+    return;
   }
-  saveUser();
+  user = r.user;
 
   const target = LEVELS[n - 1].target;
   let buttons;
@@ -213,8 +247,8 @@ onLevelEnd = function (passed, score) {
     <h2 style="color:${passed ? "#50dc78" : "#ff6b5f"}">
       ${passed ? "LEVEL COMPLETE!" : "LEVEL FAILED"}</h2>
     <p>Your score: <b>${score}</b> &nbsp; Target: <b>${target}</b></p>
-    ${newBest ? "<p class='msg'>NEW HIGH SCORE!</p>" : ""}
-    ${unlocked ? "<p class='msg'>Level " + user.level + " unlocked.</p>" : ""}
+    ${r.newBest ? "<p class='msg'>NEW HIGH SCORE!</p>" : ""}
+    ${r.unlocked ? "<p class='msg'>Level " + user.level + " unlocked.</p>" : ""}
     ${!passed ? "<p>You needed " + (target - score) + " more points.</p>" : ""}
     ${buttons}
   </div>`, false);
