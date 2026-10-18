@@ -4,8 +4,7 @@ A modular football shooting game with two versions that share the same player da
 
 **Repository:** [Football-game-in-C](https://github.com/adilmahmudayon-hue/Football-game-in-C)
 
-**Play the web version:** http://localhost:3000 (runs on your own PC, see [Web Version](#-web-version))
-
+**Play the web version:** [football-game-in-c.onrender.com](https://football-game-in-c.onrender.com) (free hosting, may take a minute to wake up)
 ---
 
 ## 📌 Table of Contents
