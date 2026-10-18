@@ -1,8 +1,10 @@
-# ⚽ Football Shootout — A Terminal-Based Game in C
+# ⚽ Football Shootout — A Football Shooting Game in C and JavaScript
 
-A modular, terminal-based football shooting game developed in **C**. Aim at different regions of the goal, control your shot power, earn points, unlock levels, and compete for a place on the leaderboard.
+A modular football shooting game with two versions that share the same player data: a **terminal game in C** (Windows) and a **web game** (HTML canvas + JavaScript) served by a small Node.js server. Aim at regions of the goal, time your shot power, beat the goalkeeper, and clear 15 levels.
 
 **Repository:** [Football-game-in-C](https://github.com/adilmahmudayon-hue/Football-game-in-C)
+
+**Play the web version:** http://localhost:3000 (runs on your own PC, see [Web Version](#-web-version))
 
 ---
 
@@ -11,11 +13,14 @@ A modular, terminal-based football shooting game developed in **C**. Aim at diff
 - [Overview](#-overview)
 - [Features](#-features)
 - [Gameplay](#-gameplay)
+- [Levels and Ranks](#-levels-and-ranks)
 - [Game Workflow](#-game-workflow)
 - [Project Structure](#-project-structure)
 - [Module Responsibilities](#-module-responsibilities)
 - [Technologies Used](#-technologies-used)
 - [Installation and Execution](#-installation-and-execution)
+- [Web Version](#-web-version)
+- [Data Storage](#-data-storage)
 - [Programming Concepts](#-programming-concepts)
 - [Future Improvements](#-future-improvements)
 - [Author](#-author)
@@ -23,59 +28,94 @@ A modular, terminal-based football shooting game developed in **C**. Aim at diff
 
 ## 🎮 Overview
 
-Football Shootout is an interactive football shooting game that combines precision aiming, power timing, score calculation, and level-based progression.
+Football Shootout combines precision aiming, power timing, a goalkeeper, score calculation and level-based progression.
 
-Players can register or log in, select a level, aim at a specific position inside the goal, and control the power of each shot. The game evaluates the result, awards points when appropriate, and determines whether the player has achieved the required score to unlock the next level.
+Players register or log in, pick a level, aim at a cell inside the goal and stop a power bar. The power decides how high the ball lands relative to the target. The game awards points and checks whether the player reached the target score to unlock the next level.
 
-The project follows a **modular programming approach**, separating the main game logic from goal rendering, keyboard input, player management, level configuration, power control, and utility functions.
+The C version follows a **modular programming approach**, separating the main game flow from goal rendering, keyboard input, player management, level configuration, power control and utilities. The web version reuses the same game rules and the same `players.txt` file, so one account works in both.
 
 ## ✨ Features
 
-- **Player accounts:** Registration and login.
-- **Interactive aiming:** Move around the goal using arrow keys and confirm a target.
-- **Power-bar mechanics:** Control shot strength to influence the ball's landing position.
-- **Shot animation:** View the result of each attempt.
-- **Scoring system:** Earn points according to shot outcomes and landing positions.
-- **Multiple levels:** Play levels with different shot limits, target scores, and power zones.
-- **Progression system:** Unlock new levels by completing previous ones.
-- **Replay functionality:** Retry a level after an unsuccessful attempt.
-- **Player statistics:** View personal game information.
-- **Leaderboard:** Compare recorded scores with other players.
-- **Terminal interface:** Navigate menus and play using keyboard input.
+### Both versions
+
+- **Player accounts:** registration and login.
+- **Interactive aiming:** move across a 9x4 goal with the arrow keys and lock a target.
+- **Power bar:** stopping the bar controls the height of the shot.
+- **Scoring grid:** corners and edges are worth the most.
+- **15 levels** with 3 shots each, a target score and a tighter power zone as levels rise.
+- **Difficulty ranks:** Beginner, Easy, Medium, Hard and Pro.
+- **Level select:** locked levels tell you which level to complete first, and a preview screen offers Play or Back.
+- **Progression:** unlock the next level by reaching the target score, or repeat a failed level.
+- **Saved stats:** high score, total score, games played and current level.
+- **Leaderboard:** top players by high score.
+- **Quit and log out** options.
+
+### Console version
+
+- **Ball flight animation** with ANSI colors.
+- **Goalkeeper** from level 4. He slides across the goal, catches shots on his middle column and pushes them away on his sides. He gets faster and taller on higher levels.
+- **Vanishing targets** from level 6: a target you score on disappears.
+- **Moving goal** from level 11: the goal slides left and right, so you have to aim ahead of it.
+
+### Web version
+
+- Canvas graphics: goal, net, grass, power bar and animated ball.
+- Quit level button (or Esc) during play.
+- Accounts and scores saved by the Node server in `data/players.txt`.
+- Goalkeeper, vanishing targets and moving goal are not in the web version yet.
 
 ## 🕹️ Gameplay
 
-1. Launch the game and choose Login, Register, Leaderboard, or Quit.
-2. After successful authentication, enter the main game menu.
-3. Continue from the current level or select an unlocked level.
-4. Review the level's shot limit, target score, and ideal power range.
+1. Launch the game and choose Login, Register, Leaderboard or Quit.
+2. After logging in, open the main menu: Play, Select level, My stats, Leaderboard, Log out.
+3. Continue from your current level or pick any unlocked level.
+4. Review the level's shots, target score and exact power zone.
 5. Use the arrow keys to select a target inside the goal.
 6. Press Enter to lock the target.
-7. Control the power bar to determine the shot's strength.
-8. Observe the shot animation and receive feedback.
-9. Earn points and try to reach the target score before running out of shots.
-10. Unlock the next level or replay the current one, depending on the result.
+7. Stop the power bar with a key press.
+8. Watch the shot and read the feedback.
+9. Reach the target score before you run out of shots.
+10. Unlock the next level or repeat the current one.
 
-### Scoring outcomes
+### Shot outcomes
 
 | Shot result | Outcome |
 |---|---|
-| Perfect hit | The ball reaches the selected target and earns its points. |
-| Too much power | The ball lands higher than the selected target and may still score. |
-| Too little power | The ball lands lower than the selected target and may still score. |
-| Over the bar | No points. |
-| Too weak to reach the goal | No points. |
+| Power in the exact zone | The ball lands on your target and earns its points. |
+| Power above the zone | The ball lands 1 or 2 rows higher and may still score. |
+| Power below the zone | The ball lands 1 or 2 rows lower and may still score. |
+| Top-row target with too much power | Over the bar, no points. |
+| Bottom-row target with too little power | Hits the ground before the goal, no points. |
+| Lands on the goalkeeper (console) | Caught or pushed away, no points. |
+| Goal moved away (console, levels 11+) | Missed wide, no points. |
 
 A level is completed when the final score meets or exceeds its target score.
 
-## 🔄 Game Workflow
+## 🏆 Levels and Ranks
 
-The game follows this sequence from launch to level progression.
+| Level | Rank | Target | Bar speed | Exact zone | Extra mechanics (console) |
+|---|---|---|---|---|---|
+| 1 | Beginner | 5 | 2 | 35% - 70% | none |
+| 2 | Beginner | 7 | 3 | 40% - 70% | none |
+| 3 | Beginner | 9 | 3 | 45% - 70% | none |
+| 4 | Easy | 11 | 4 | 50% - 70% | goalkeeper |
+| 5 | Easy | 12 | 5 | 55% - 70% | goalkeeper |
+| 6 | Easy | 9 | 5 | 58% - 70% | + vanishing targets |
+| 7 | Medium | 10 | 5 | 60% - 70% | + vanishing targets |
+| 8 | Medium | 11 | 6 | 62% - 72% | + vanishing targets |
+| 9 | Medium | 12 | 6 | 64% - 72% | + vanishing targets |
+| 10 | Hard | 13 | 7 | 64% - 72% | taller goalkeeper |
+| 11 | Hard | 9 | 6 | 64% - 74% | + moving goal |
+| 12 | Hard | 10 | 6 | 64% - 74% | + moving goal |
+| 13 | Pro | 11 | 7 | 66% - 74% | + faster moving goal |
+| 14 | Pro | 12 | 7 | 66% - 74% | + faster moving goal |
+| 15 | Pro | 13 | 7 | 68% - 76% | fastest goal and keeper |
+
+## 🔄 Game Workflow
 
 ```mermaid
 flowchart TD
-    A([Start Game]) --> B[Initialize Console]
-    B --> C[Login / Register Menu]
+    A([Start Game]) --> C[Login / Register Menu]
     C -->|Register| D[Create Player Account]
     C -->|Login| E[Authenticate Player]
     D --> E
@@ -92,14 +132,14 @@ flowchart TD
     K --> F
     H --> L[Select Target Cell]
     L --> M[Lock Target]
-    M --> N[Control Shot Power]
+    M --> N[Stop Power Bar]
     N --> O[Evaluate Shot]
     O --> P[Animate and Score Shot]
     P --> Q{Shots Remaining?}
     Q -->|Yes| L
     Q -->|No| R[Calculate Final Score]
     R --> S{Target Reached?}
-    S -->|Yes| T[Save Score and Unlock Progress]
+    S -->|Yes| T[Save Score and Unlock Next Level]
     S -->|No| U[Save Score and Offer Replay]
     T --> V{More Levels?}
     V -->|Yes| W[Next Level or Menu]
@@ -107,23 +147,22 @@ flowchart TD
     V -->|No| X([Game Completed])
     U -->|Replay| H
     U -->|Quit Level| F
-    G -->|Quit| Y([Exit])
+    G -->|Log out| C
+    C -->|Quit| Y([Exit])
     X --> Y
 ```
 
 ### How the modules cooperate
 
-- `main.c` controls the application flow and calls functions from the other modules.
-- The `player` module manages account-related operations, statistics, score recording, and progress.
-- The `level` module provides the configuration for the selected level.
-- The `goal` module handles the goal display and target-point calculation.
-- The `input` module reads keyboard actions.
-- The `power` module handles the power bar, shot evaluation, and shot animation.
-- The `utils` module provides shared console and utility operations.
+- `main.c` controls the application flow and calls the other modules.
+- `player` handles accounts, statistics, score recording and progress.
+- `level` provides each level's settings and its rank name.
+- `goal` draws the goal, the goalkeeper and the ball animation, and handles vanishing targets and the moving goal.
+- `input` reads keyboard actions.
+- `power` runs the power bar and decides where the shot lands.
+- `utils` provides console and timing helpers.
 
 ## 📂 Project Structure
-
-The repository separates the application entry point from the modules responsible for individual game systems.
 
 ```text
 Football-game-in-C/
@@ -155,131 +194,37 @@ Football-game-in-C/
 │   ├── utils.c
 │   └── utils.h
 │
+├── web/
+│   ├── index.html
+│   ├── style.css
+│   ├── game.js
+│   ├── levels.js
+│   └── menu.js
+│
+├── data/              (created automatically, not uploaded to GitHub)
+│   └── players.txt
+│
+├── server.js
 ├── .gitignore
 └── README.md
 ```
 
-*The tree documents the intended module pairing. Confirm individual filenames against the contents of each folder before using the compilation command below.*
-
 ### Why separate `.c` and `.h` files?
 
-- **`.c` files** contain the actual function implementations and logic.
-- **`.h` files** declare functions, structures, enumerations, and constants that other modules need to access.
+- **`.c` files** contain the function implementations and logic.
+- **`.h` files** declare the functions, structures, enumerations and constants other modules need.
 - **`src/main.c`** coordinates the modules through their public interfaces.
 
-This separation makes the project easier to maintain, test, debug, and extend.
+This makes the project easier to maintain, test, debug and extend.
 
 ## 🧩 Module Responsibilities
 
 | Module | Responsibility |
 |---|---|
-| `src/main.c` | Main menus, login flow, aiming, gameplay, level selection, and progression |
-| `goal/` | Goal rendering and target-point calculation |
+| `src/main.c` | Menus, login flow, aiming, level loop, level select and progression |
+| `goal/` | Goal grid, drawing, goalkeeper, vanishing targets, moving goal, ball animation |
 | `input/` | Keyboard input and key-event handling |
-| `level/` | Level settings, shot limits, target scores, and power zones |
-| `player/` | Registration, login, player statistics, leaderboard, score recording, and progress |
-| `power/` | Power-bar operation, shot evaluation, and shot animation |
-| `utils/` | Console initialization, screen clearing, cursor control, and timing utilities |
-
-## 🛠️ Technologies Used
-
-- **C:** Main programming language.
-- **GCC:** Compiler.
-- **Standard C library:** Input/output, strings, and formatted output.
-- **ANSI escape sequences:** Terminal screen and cursor control.
-- **Git and GitHub:** Version control and source code hosting.
-
-## 🚀 Installation and Execution
-
-### Prerequisites
-
-- GCC or another compatible C compiler.
-- Git, for cloning the repository.
-- A terminal that supports the game's keyboard input and console features.
-
-Check your GCC installation:
-
-```bash
-gcc --version
-```
-
-### 1. Clone the repository
-
-```bash
-git clone https://github.com/adilmahmudayon-hue/Football-game-in-C.git
-```
-
-### 2. Open the project directory
-
-```bash
-cd Football-game-in-C
-```
-
-### 3. Compile the project
-
-From the repository root, if the source files are named as shown in the project tree:
-
-```bash
-gcc -std=c11 -Wall -Wextra src/main.c goal/goal.c input/input.c level/level.c player/player.c power/power.c utils/utils.c -Igoal -Iinput -Ilevel -Iplayer -Ipower -Iutils -o football
-```
-
-The `-I` options tell GCC where to find the header files included by `main.c`.
-
-The `-Wall` and `-Wextra` options enable additional compiler warnings.
-
-**Note:** This command assumes each module's implementation file has the matching name shown above. If a folder contains additional required `.c` files, include those in the command as well.
-
-### 4. Run the game
-
-**Windows PowerShell:**
-
-```powershell
-.\football.exe
-```
-
-**Linux:**
-
-```bash
-./football
-```
-
-If keyboard handling relies on platform-specific APIs, the compiler and terminal setup may need additional configuration.
-
-## 🧠 Programming Concepts
-
-The project demonstrates several fundamental C programming concepts:
-
-- **Functions and modular programming:** Separate gameplay responsibilities into reusable functions and modules.
-- **Structures and enumerations:** Organize player and level data and represent shot outcomes.
-- **Pointers:** Allow functions to modify target coordinates and share data.
-- **Conditionals and loops:** Handle menus, shot evaluation, level completion, and replay logic.
-- **Arrays and strings:** Manage target positions, formatted messages, and player-related information.
-- **Input/output and file handling:** Process keyboard input, display results, and support persistent game data where implemented.
-- **Console control:** Use terminal escape sequences and timing utilities for interactive effects.
-
-## 🔮 Future Improvements
-
-- [ ] Add additional levels and goal layouts.
-- [ ] Introduce practice and difficulty modes.
-- [ ] Add sound effects and improved animations.
-- [ ] Expand player statistics and historical score tracking.
-- [ ] Improve input validation and account-data handling.
-- [ ] Enhance portability across terminal environments.
-- [ ] Add screenshots or a gameplay demonstration.
-
-## 👨‍💻 Author
-
-**Adil Mahmud Ayon**
-
-- GitHub: [@adilmahmudayon-hue](https://github.com/adilmahmudayon-hue)
-- Project: [Football-game-in-C](https://github.com/adilmahmudayon-hue/Football-game-in-C)
-
-## 📄 License
-
-Please refer to the license included in the repository. If the project does not yet have a license, consider adding one to define the terms under which others may use, modify, and distribute the code.
-
----
-
-⭐ If you like this project, consider starring the repository!
-
-**Built with C and a passion for football. ⚽**
+| `level/` | Level settings (shots, target, bar speed, zone, mechanics) and rank names |
+| `player/` | Registration, login, statistics, leaderboard, score recording and progress |
+| `power/` | Power bar and shot evaluation (exact, higher, lower, over, under) |
+| `utils/` | Console
