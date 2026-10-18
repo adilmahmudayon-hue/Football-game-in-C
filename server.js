@@ -3,7 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 const WEB_DIR = path.join(__dirname, "web");
 const DATA_DIR = path.join(__dirname, "data");
 const PLAYER_FILE = path.join(DATA_DIR, "players.txt");
@@ -171,7 +171,7 @@ http.createServer(async (req, res) => {
   } catch (e) {
     sendJson(res, 500, { error: "Server error." });
   }
-}).listen(PORT, "127.0.0.1", () => {
+}).listen(PORT, "0.0.0.0", () => {
   console.log("Football Shootout running at http://localhost:" + PORT);
   console.log("Players file: " + PLAYER_FILE);
 });
