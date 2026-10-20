@@ -1,5 +1,10 @@
 {
   "name": "football-shootout",
   "version": "1.0.0",
-  "scripts": { "start": "node server.js" }
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.118.0"
+  }
 }

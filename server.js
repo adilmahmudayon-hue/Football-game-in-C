@@ -2,51 +2,29 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const { createClient } = require("@supabase/supabase-js");
+const { hashPassword, verifyPassword } = require("./auth");
 
 const PORT = process.env.PORT || 3000;
 const WEB_DIR = path.join(__dirname, "web");
-const DATA_DIR = path.join(__dirname, "data");
-const PLAYER_FILE = path.join(DATA_DIR, "players.txt");
 const MAX_LEVEL = 15;
+
+if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
+  console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_KEY environment variable.");
+  process.exit(1);
+}
+const db = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY, {
+  auth: { persistSession: false },
+});
 
 const sessions = new Map(); // token -> player name
 
-// ---------- players.txt ----------
-function loadPlayers() {
-  if (!fs.existsSync(PLAYER_FILE)) return [];
-  const list = [];
-  for (const line of fs.readFileSync(PLAYER_FILE, "utf8").split(/\r?\n/)) {
-    const p = line.trim().split(/\s+/);
-    if (p.length < 5) continue;
-    let level = p.length >= 6 ? parseInt(p[5], 10) : 1;
-    if (!(level >= 1 && level <= MAX_LEVEL)) level = 1;
-    list.push({
-      name: p[0],
-      password: p[1],
-      highScore: parseInt(p[2], 10) || 0,
-      gamesPlayed: parseInt(p[3], 10) || 0,
-      totalScore: parseInt(p[4], 10) || 0,
-      level,
-    });
-  }
-  return list;
-}
-
-function savePlayers(list) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  const text = list
-    .map((u) => [u.name, u.password, u.highScore, u.gamesPlayed,
-                 u.totalScore, u.level].join(" "))
-    .join("\n");
-  fs.writeFileSync(PLAYER_FILE, text + (list.length ? "\n" : ""));
-}
-
-function publicUser(u) {
-  return { name: u.name, highScore: u.highScore, gamesPlayed: u.gamesPlayed,
-           totalScore: u.totalScore, level: u.level };
-}
-
 // ---------- helpers ----------
+function toUser(r) {
+  return { name: r.name, highScore: r.high_score, gamesPlayed: r.games_played,
+           totalScore: r.total_score, level: r.level };
+}
+
 function sendJson(res, status, obj) {
   res.writeHead(status, { "Content-Type": "application/json" });
   res.end(JSON.stringify(obj));
@@ -69,14 +47,20 @@ function readBody(req) {
 
 const validWord = (s) => typeof s === "string" && /^\S{1,19}$/.test(s);
 
+async function getPlayer(name) {
+  const { data, error } = await db.from("players").select("*")
+    .eq("name", name).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 // ---------- API ----------
 async function handleApi(req, res, route) {
   if (req.method === "GET" && route === "leaderboard") {
-    const top = loadPlayers()
-      .sort((a, b) => b.highScore - a.highScore)
-      .slice(0, 5)
-      .map(publicUser);
-    return sendJson(res, 200, { top });
+    const { data, error } = await db.from("players").select("*")
+      .order("high_score", { ascending: false }).limit(5);
+    if (error) throw error;
+    return sendJson(res, 200, { top: data.map(toUser) });
   }
 
   if (req.method !== "POST") return sendJson(res, 405, { error: "Not allowed" });
@@ -85,25 +69,31 @@ async function handleApi(req, res, route) {
   if (route === "register") {
     if (!validWord(body.name) || !validWord(body.password))
       return sendJson(res, 400, { error: "Username and password: 1-19 characters, no spaces." });
-    const list = loadPlayers();
-    if (list.some((u) => u.name === body.name))
+    if (await getPlayer(body.name))
       return sendJson(res, 400, { error: "That username is already taken." });
-    const u = { name: body.name, password: body.password, highScore: 0,
-                gamesPlayed: 0, totalScore: 0, level: 1 };
-    list.push(u);
-    savePlayers(list);
+
+    const { data, error } = await db.from("players").insert({
+      name: body.name,
+      password_hash: hashPassword(body.password),
+    }).select().single();
+    if (error) {
+      if (error.code === "23505")
+        return sendJson(res, 400, { error: "That username is already taken." });
+      throw error;
+    }
     const token = crypto.randomUUID();
-    sessions.set(token, u.name);
-    return sendJson(res, 200, { token, user: publicUser(u) });
+    sessions.set(token, data.name);
+    return sendJson(res, 200, { token, user: toUser(data) });
   }
 
   if (route === "login") {
-    const u = loadPlayers().find(
-      (p) => p.name === body.name && p.password === body.password);
-    if (!u) return sendJson(res, 401, { error: "Wrong username or password." });
+    const p = validWord(body.name) ? await getPlayer(body.name) : null;
+    if (!p || typeof body.password !== "string" ||
+        !verifyPassword(body.password, p.password_hash))
+      return sendJson(res, 401, { error: "Wrong username or password." });
     const token = crypto.randomUUID();
-    sessions.set(token, u.name);
-    return sendJson(res, 200, { token, user: publicUser(u) });
+    sessions.set(token, p.name);
+    return sendJson(res, 200, { token, user: toUser(p) });
   }
 
   if (route === "logout") {
@@ -120,23 +110,26 @@ async function handleApi(req, res, route) {
     if (!(level >= 1 && level <= MAX_LEVEL) || !(score >= 0 && score <= 60))
       return sendJson(res, 400, { error: "Bad data." });
 
-    const list = loadPlayers();
-    const u = list.find((p) => p.name === name);
-    if (!u) return sendJson(res, 404, { error: "Player not found." });
-    if (level > u.level)
+    const p = await getPlayer(name);
+    if (!p) return sendJson(res, 404, { error: "Player not found." });
+    if (level > p.level)
       return sendJson(res, 400, { error: "That level is locked." });
 
-    u.gamesPlayed++;
-    u.totalScore += score;
+    const update = {
+      games_played: p.games_played + 1,
+      total_score: p.total_score + score,
+    };
     let newBest = false;
-    if (score > u.highScore) { u.highScore = score; newBest = true; }
+    if (score > p.high_score) { update.high_score = score; newBest = true; }
     let unlocked = false;
-    if (body.passed === true && level < MAX_LEVEL && level + 1 > u.level) {
-      u.level = level + 1;
+    if (body.passed === true && level < MAX_LEVEL && level + 1 > p.level) {
+      update.level = level + 1;
       unlocked = true;
     }
-    savePlayers(list);
-    return sendJson(res, 200, { user: publicUser(u), newBest, unlocked });
+    const { data, error } = await db.from("players").update(update)
+      .eq("name", name).select().single();
+    if (error) throw error;
+    return sendJson(res, 200, { user: toUser(data), newBest, unlocked });
   }
 
   sendJson(res, 404, { error: "Unknown request." });
@@ -169,9 +162,9 @@ http.createServer(async (req, res) => {
       return await handleApi(req, res, url.pathname.slice(5));
     serveStatic(res, url.pathname);
   } catch (e) {
+    console.error(e);
     sendJson(res, 500, { error: "Server error." });
   }
 }).listen(PORT, "0.0.0.0", () => {
-  console.log("Football Shootout running at http://localhost:" + PORT);
-  console.log("Players file: " + PLAYER_FILE);
+  console.log("Football Shootout running on port " + PORT);
 });
