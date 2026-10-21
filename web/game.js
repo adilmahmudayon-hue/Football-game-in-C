@@ -1,7 +1,7 @@
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-// ---------- data (same as the C game) ----------
+// ---------- data ----------
 const ROWS = 4;
 const COLS = 9;
 const KEEPER_W = 3;
@@ -16,7 +16,8 @@ let level = LEVELS[0];
 let running = false;
 let currentLevelNum = 1;
 let onLevelEnd = null;
-const ROW_STEP = 15; // every 15% outside the green zone = one more row
+const ROW_STEP = 15;
+const GOAL_RANGE = 70; // the goal slides -70..+70 pixels
 
 // ---------- layout ----------
 const CELL_W = 80;
@@ -30,7 +31,8 @@ const BALL_X = canvas.width / 2;
 const BALL_Y = 455;
 const BALL_R = 22;
 
-const cellX = (c) => GOAL_X + c * CELL_W + CELL_W / 2;
+// cell centre without the goal's sideways shift
+const cellXLocal = (c) => GOAL_X + c * CELL_W + CELL_W / 2;
 const cellY = (r) => GOAL_Y + r * CELL_H + CELL_H / 2;
 
 // ---------- state ----------
@@ -42,17 +44,48 @@ let score = 0;
 let power = 0;
 let powerDir = 1;
 let message = "";
+let warn = "";
 let resultTimer = 0;
 
 let flight = null;
 let pendingPoints = 0;
 let pendingText = "";
+let pendingVanish = null;
+
+// vanishing targets
+let vanished = [];
+function resetTargets() {
+  vanished = [];
+  for (let r = 0; r < ROWS; r++) vanished.push(new Array(COLS).fill(false));
+}
+
+// moving goal
+let goalShift = 0;
+let goalDir = 1;
+let lockedX = 0; // screen x where the ball will fly
+
+function resetGoal() {
+  goalShift = 0;
+  goalDir = 1;
+}
+
+function moveGoal(dt) {
+  if (!level.sway) return;
+  goalShift += goalDir * level.sway * dt;
+  if (goalShift >= GOAL_RANGE) { goalShift = GOAL_RANGE; goalDir = -1; }
+  else if (goalShift <= -GOAL_RANGE) { goalShift = -GOAL_RANGE; goalDir = 1; }
+}
+
+// which column is under screen x right now (-1 = outside the goal)
+function colAt(x) {
+  const c = Math.floor((x - GOAL_X - goalShift) / CELL_W);
+  return c >= 0 && c < COLS ? c : -1;
+}
 
 // goalkeeper
-let keeperX = (COLS - KEEPER_W) / 2; // left edge, in columns (can be fractional)
+let keeperX = (COLS - KEEPER_W) / 2;
 let keeperDir = 1;
 
-// ---------- goalkeeper ----------
 function resetKeeper() {
   keeperX = (COLS - KEEPER_W) / 2;
   keeperDir = 1;
@@ -75,18 +108,17 @@ function keeperCovers(row, col) {
   return col >= k && col < k + KEEPER_W;
 }
 
-// middle column = clean catch
 const keeperCaught = (col) => col === keeperLeft() + 1;
 
 // ---------- game rules ----------
 function judgeShot(p, targetRow) {
-  let offset = 0; // positive = higher, negative = lower
+  let offset = 0;
   if (p < level.sweetMin) {
     offset = -(1 + Math.floor((level.sweetMin - p - 1) / ROW_STEP));
   } else if (p > level.sweetMax) {
     offset = 1 + Math.floor((p - level.sweetMax - 1) / ROW_STEP);
   }
-  const landRow = targetRow - offset; // row 0 is the top
+  const landRow = targetRow - offset;
   if (landRow < 0) return { type: "over", landRow };
   if (landRow >= ROWS) return { type: "under", landRow };
   return { type: "hit", landRow };
@@ -100,36 +132,40 @@ function makeFlight(toX, toY, arc, endRadius, duration) {
 function launchShot() {
   const p = Math.round(power);
   const res = judgeShot(p, cursorRow);
-  const x = cellX(cursorCol);
+  const x = lockedX;
+  const landCol = colAt(x);
+  pendingPoints = 0;
+  pendingVanish = null;
 
-  if (res.type === "hit" && keeperCovers(res.landRow, cursorCol)) {
-    // the goalkeeper gets there first
+  if (res.type === "hit" && landCol < 0) {
+    // the goal moved away: the ball goes wide of the post
+    flight = makeFlight(x, cellY(res.landRow), 90, 14, 0.9);
+    pendingText = "The goal moved away! The ball missed wide of the post.";
+  } else if (res.type === "hit" && keeperCovers(res.landRow, landCol)) {
     const y = cellY(res.landRow);
     flight = makeFlight(x, y, 90, 14, 0.8);
-    const caught = keeperCaught(cursorCol);
     const next = { fromX: x, fromY: y, startRadius: 14, endRadius: 14,
                    t: 0, next: null };
-    if (caught) {
-      next.toX = x;
-      next.toY = GROUND_Y - 12;
-      next.arc = 20;
-      next.duration = 0.35;
+    if (keeperCaught(landCol)) {
+      next.toX = x; next.toY = GROUND_Y - 12; next.arc = 20; next.duration = 0.35;
       pendingText = "SAVED! The goalkeeper caught the ball. No points.";
     } else {
-      const side = cursorCol < keeperLeft() + 1 ? -1 : 1;
-      next.toX = x + side * 170;
-      next.toY = GROUND_Y + 25;
-      next.arc = 60;
-      next.duration = 0.55;
+      const side = landCol < keeperLeft() + 1 ? -1 : 1;
+      next.toX = x + side * 170; next.toY = GROUND_Y + 25;
+      next.arc = 60; next.duration = 0.55;
       pendingText = "SAVED! The goalkeeper pushed the ball away. No points.";
     }
     flight.next = next;
-    pendingPoints = 0;
+  } else if (res.type === "hit" && vanished[res.landRow][landCol]) {
+    flight = makeFlight(x, cellY(res.landRow), 90, 14, 0.9);
+    pendingText = "The ball flew through the gap where a target used to be. No points.";
   } else if (res.type === "hit") {
     flight = makeFlight(x, cellY(res.landRow), 90, 14, 0.9);
-    pendingPoints = points[res.landRow][cursorCol];
-    if (res.landRow === cursorRow) {
+    pendingPoints = points[res.landRow][landCol];
+    if (res.landRow === cursorRow && landCol === cursorCol) {
       pendingText = "PERFECT! +" + pendingPoints + " points";
+    } else if (landCol !== cursorCol) {
+      pendingText = "The goal moved! The ball hit another target: +" + pendingPoints;
     } else if (res.landRow < cursorRow) {
       pendingText = "Too much power! " + (cursorRow - res.landRow) +
         " row(s) higher: +" + pendingPoints;
@@ -137,13 +173,15 @@ function launchShot() {
       pendingText = "Not enough power! " + (res.landRow - cursorRow) +
         " row(s) lower: +" + pendingPoints;
     }
+    if (level.vanish) {
+      pendingVanish = [res.landRow, landCol];
+      pendingText += "  (target vanished!)";
+    }
   } else if (res.type === "over") {
     flight = makeFlight(x, -80, 0, 8, 0.9);
-    pendingPoints = 0;
     pendingText = "Way too strong! The ball sailed over the bar.";
   } else {
     flight = makeFlight(x, GROUND_Y + 40, 60, 14, 0.9);
-    pendingPoints = 0;
     pendingText = "Way too weak! The ball hit the ground before the goal.";
   }
   state = "flying";
@@ -158,6 +196,7 @@ function startNextShotOrFinish() {
     power = 0;
     powerDir = 1;
     message = "";
+    warn = "";
     state = "aim";
   }
 }
@@ -168,9 +207,12 @@ function restart() {
   power = 0;
   powerDir = 1;
   message = "";
+  warn = "";
   cursorRow = 1;
   cursorCol = Math.floor(COLS / 2);
   resetKeeper();
+  resetTargets();
+  resetGoal();
   state = "aim";
 }
 
@@ -194,14 +236,20 @@ document.addEventListener("keydown", (e) => {
   const isAction = k === "Enter" || k === " ";
 
   if (state === "aim") {
+    warn = "";
     if (k === "ArrowUp" && cursorRow > 0) cursorRow--;
     else if (k === "ArrowDown" && cursorRow < ROWS - 1) cursorRow++;
     else if (k === "ArrowLeft" && cursorCol > 0) cursorCol--;
     else if (k === "ArrowRight" && cursorCol < COLS - 1) cursorCol++;
     else if (isAction) {
-      power = 0;
-      powerDir = 1;
-      state = "power";
+      if (vanished[cursorRow][cursorCol]) {
+        warn = "That target has vanished! Pick another one.";
+      } else {
+        lockedX = cellXLocal(cursorCol) + goalShift;
+        power = 0;
+        powerDir = 1;
+        state = "power";
+      }
     } else return;
   } else if (state === "power") {
     if (!isAction) return;
@@ -218,9 +266,11 @@ function update(dt) {
 
   if (state === "aim") {
     moveKeeper(dt);
+    moveGoal(dt);
   } else if (state === "power") {
     moveKeeper(dt);
-    power += powerDir * level.speed * 50 * dt; // speed 2 = 100% per second
+    moveGoal(dt);
+    power += powerDir * level.speed * 50 * dt;
     if (power >= 100) { power = 100; powerDir = -1; }
     else if (power <= 0) { power = 0; powerDir = 1; }
   } else if (state === "flying") {
@@ -232,6 +282,10 @@ function update(dt) {
         flight.t = 1;
         score += pendingPoints;
         message = pendingText;
+        if (pendingVanish) {
+          vanished[pendingVanish[0]][pendingVanish[1]] = true;
+          pendingVanish = null;
+        }
         state = "result";
         resultTimer = 1.6;
       }
@@ -289,8 +343,9 @@ function drawPoints() {
   ctx.textBaseline = "middle";
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
+      if (vanished[r][c]) continue;
       ctx.fillStyle = pointColor(points[r][c]);
-      ctx.fillText(points[r][c], cellX(c), cellY(r));
+      ctx.fillText(points[r][c], cellXLocal(c), cellY(r));
     }
   }
 }
@@ -304,7 +359,6 @@ function drawKeeper() {
   const y = GROUND_Y - h;
   const cx = x + w / 2;
 
-  // soft shadow on the ground
   ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
   ctx.beginPath();
   ctx.ellipse(cx, GROUND_Y - 2, 60, 9, 0, 0, Math.PI * 2);
@@ -313,7 +367,6 @@ function drawKeeper() {
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
-  // legs
   ctx.strokeStyle = "#1c6f86";
   ctx.lineWidth = 16;
   ctx.beginPath();
@@ -323,7 +376,6 @@ function drawKeeper() {
   ctx.lineTo(cx + 22, GROUND_Y - 6);
   ctx.stroke();
 
-  // arms, stretched out wide
   ctx.strokeStyle = "#35c4e8";
   ctx.lineWidth = 14;
   ctx.beginPath();
@@ -333,14 +385,12 @@ function drawKeeper() {
   ctx.lineTo(cx + 100, y + h * 0.14);
   ctx.stroke();
 
-  // gloves
   ctx.fillStyle = "#ffd23f";
   ctx.beginPath();
   ctx.arc(cx - 104, y + h * 0.13, 14, 0, Math.PI * 2);
   ctx.arc(cx + 104, y + h * 0.13, 14, 0, Math.PI * 2);
   ctx.fill();
 
-  // torso
   ctx.fillStyle = "#35c4e8";
   ctx.strokeStyle = "#e9fbff";
   ctx.lineWidth = 3;
@@ -350,7 +400,6 @@ function drawKeeper() {
   ctx.fill();
   ctx.stroke();
 
-  // head
   ctx.fillStyle = "#f2c9a0";
   ctx.beginPath();
   ctx.arc(cx, y + h * 0.13, 18, 0, Math.PI * 2);
@@ -375,13 +424,14 @@ function drawCursor() {
   ctx.lineWidth = 4;
   ctx.strokeRect(x + 2, y + 2, CELL_W - 4, CELL_H - 4);
 
-  // show the target's points on top of the keeper too
-  if (keeperCovers(cursorRow, cursorCol)) {
-    ctx.font = "bold 26px Arial";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = "#ffffff";
-    ctx.fillText(points[cursorRow][cursorCol], cellX(cursorCol), cellY(cursorRow));
+  ctx.font = "bold 26px Arial";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#ffffff";
+  if (vanished[cursorRow][cursorCol]) {
+    ctx.fillText("X", cellXLocal(cursorCol), cellY(cursorRow));
+  } else if (keeperCovers(cursorRow, cursorCol)) {
+    ctx.fillText(points[cursorRow][cursorCol], cellXLocal(cursorCol), cellY(cursorRow));
   }
 }
 
@@ -395,6 +445,19 @@ function drawPosts() {
   ctx.lineTo(GOAL_X + GOAL_W, GOAL_Y);
   ctx.lineTo(GOAL_X + GOAL_W, GROUND_Y);
   ctx.stroke();
+}
+
+// dashed line on the grass showing where the ball will fly
+function drawAimLine() {
+  ctx.save();
+  ctx.setLineDash([8, 8]);
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.7)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(lockedX, GROUND_Y + 8);
+  ctx.lineTo(lockedX, BALL_Y - BALL_R - 6);
+  ctx.stroke();
+  ctx.restore();
 }
 
 function drawBall(x, y, radius) {
@@ -471,14 +534,22 @@ function drawHud() {
   ctx.fillStyle = "#ffffff";
 
   if (state === "aim") {
-    ctx.fillText(
-      "Target: row " + (cursorRow + 1) + ", column " + (cursorCol + 1) +
-        " = " + points[cursorRow][cursorCol] + " points",
-      canvas.width / 2, 545);
+    if (warn) {
+      ctx.fillStyle = "#ffd23f";
+      ctx.fillText(warn, canvas.width / 2, 545);
+    } else {
+      const t = vanished[cursorRow][cursorCol]
+        ? "GONE"
+        : points[cursorRow][cursorCol] + " points";
+      ctx.fillText("Target: row " + (cursorRow + 1) + ", column " + (cursorCol + 1) +
+        " = " + t, canvas.width / 2, 545);
+    }
     ctx.fillStyle = "#d8e6d8";
     ctx.fillText("Arrow keys: move    Enter: lock target", canvas.width / 2, 525);
   } else if (state === "power") {
-    ctx.fillText("Press Space or Enter to shoot!", canvas.width / 2, 545);
+    ctx.fillText(level.sway
+      ? "The goal is moving! The ball lands where it is when you shoot."
+      : "Press Space or Enter to shoot!", canvas.width / 2, 545);
   } else if (state === "result") {
     ctx.fillText(message, canvas.width / 2, 545);
   }
@@ -486,11 +557,17 @@ function drawHud() {
 
 function draw() {
   drawBackground();
+
+  ctx.save();
+  ctx.translate(goalShift, 0);
   drawNet();
   drawPoints();
   drawKeeper();
   drawCursor();
   drawPosts();
+  ctx.restore();
+
+  if (state === "power") drawAimLine();
 
   if ((state === "flying" || state === "result") && flight) {
     drawFlyingBall();

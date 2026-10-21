@@ -168,6 +168,10 @@ function showPreview(n) {
       <p>Shots: <b>${lv.shots}</b></p>
       <p>Target score: <b>${lv.target}</b></p>
       <p>Exact zone: <b>${lv.sweetMin}% - ${lv.sweetMax}%</b></p>
+           
+      ${lv.vanish ? "<p>Targets you score on <b>vanish</b>!</p>" : ""}
+      ${lv.sway ? "<p>The goal <b>moves</b> left and right!</p>" : ""}
+
     </div>
     <div class="row">
       <button id="go">Play</button>
