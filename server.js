@@ -59,12 +59,12 @@ async function getPlayer(name) {
 
 // ---------- API ----------
 async function handleApi(req, res, route) {
-  if (req.method === "GET" && route === "leaderboard") {
-        const { data, error } = await db.from("players").select("*")
-      .order("high_score", { ascending: false })
+    if (req.method === "GET" && route === "leaderboard") {
+    const { data, error } = await db.from("players").select("*")
       .order("level", { ascending: false })
       .order("total_score", { ascending: false })
-      .limit(5);
+      .order("high_score", { ascending: false })
+      .limit(10);
     if (error) throw error;
     return sendJson(res, 200, { top: data.map(toUser) });
   }

@@ -203,16 +203,18 @@ async function showLeaderboard(backFn) {
   const r = await api("leaderboard");
   let rows;
   if (r.error) {
-    rows = `<tr><td colspan="4">${esc(r.error)}</td></tr>`;
+    rows = r.top.map((u, i) =>
+      `<tr><td>${i + 1}</td><td>${esc(u.name)}</td><td>L${u.level}</td>
+       <td>${u.totalScore}</td><td>${u.highScore}</td></tr>`).join("");
   } else {
     rows = r.top.map((u, i) =>
       `<tr><td>${i + 1}</td><td>${esc(u.name)}</td><td>${u.highScore}</td>
        <td>L${u.level}</td></tr>`).join("");
-    if (!rows) rows = `<tr><td colspan="4">No players yet.</td></tr>`;
+    if (!rows) rows = `<tr><td colspan="5">No players yet.</td></tr>`;
   }
   show(`<div class="panel">
     <h2>TOP PLAYERS</h2>
-    <table><tr><th>#</th><th>Name</th><th>Best</th><th>Level</th></tr>${rows}</table>
+        <table><tr><th>#</th><th>Name</th><th>Level</th><th>Total</th></tr>${rows}</table>
     <button id="back">Back</button>
   </div>`);
   on("back", backFn);
