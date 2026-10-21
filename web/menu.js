@@ -1,5 +1,16 @@
 const ui = document.getElementById("ui");
 const quitBtn = document.getElementById("quitBtn");
+
+const touch = document.getElementById("touch");
+
+// each touch button sends the same key press the keyboard would
+touch.querySelectorAll("button").forEach((b) => {
+  b.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: b.dataset.key }));
+  });
+});
+
 let user = null;
 let token = null;
 
@@ -26,6 +37,7 @@ function esc(s) {
 
 // ---------- helpers ----------
 function show(html, solid) {
+    touch.style.display = "none";
   quitBtn.style.display = "none";
   ui.className = solid === false ? "clear" : "solid";
   ui.innerHTML = html;
@@ -206,6 +218,7 @@ async function showLeaderboard(backFn) {
 function startPlay(n) {
   hide();
   quitBtn.style.display = "block";
+    touch.style.display = "flex";
   startLevel(n);
 }
 

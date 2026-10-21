@@ -98,3 +98,42 @@ td, th { padding: 6px; border-bottom: 1px solid #2c3541; text-align: left; }
   cursor: pointer;
 }
 #quitBtn:hover { background: #d4423a; }
+
+body { flex-direction: column; }
+
+#touch {
+  display: none;
+  margin-top: 12px;
+  width: 100%;
+  max-width: 900px;
+  padding: 0 14px;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.dpad {
+  display: grid;
+  grid-template-columns: repeat(3, 62px);
+  grid-template-rows: repeat(2, 62px);
+  gap: 6px;
+}
+#touch button {
+  border: 0;
+  border-radius: 12px;
+  background: #34404f;
+  color: #fff;
+  font-size: 24px;
+  touch-action: manipulation;
+}
+#touch button:active { background: #435263; }
+#actBtn {
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  background: #2fbf5b;
+  font-size: 18px;
+  font-weight: bold;
+}
+#actBtn:active { background: #3ad36a; }
