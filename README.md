@@ -1,98 +1,109 @@
-# ⚽ Football Shootout — A Football Shooting Game in C and JavaScript
+# ⚽ Football Shootout — Football Shooting Game in C and JavaScript
 
-A modular football shooting game with two versions that share the same player data: a **terminal game in C** (Windows) and a **web game** (HTML canvas + JavaScript) served by a small Node.js server. Aim at regions of the goal, time your shot power, beat the goalkeeper, and clear 15 levels.
+A football shooting game with two versions: a **terminal game in C** (Windows) and an **online web game** you can play from anywhere, on desktop or phone. Aim at regions of the goal, time your shot power, beat the goalkeeper, and clear 15 levels.
 
-**Repository:** [Football-game-in-C](https://github.com/adilmahmudayon-hue/Football-game-in-C)
+## 🌍 Play Online
 
-**Play the web version:** [football-game-in-c.onrender.com](https://football-game-in-c.onrender.com) (free hosting, may take a minute to wake up)
+**👉 [Play now: football-game-in-c.onrender.com](https://football-game-in-c.onrender.com)**
+
+- Works on desktop (keyboard) and on phones (on-screen touch buttons).
+- Create an account or log in, and your progress is saved online.
+- The game runs on free hosting, so the **first load can take up to a minute** while the server wakes up. Please wait and it will start.
+- On a phone, turn the screen sideways for a bigger goal, and use *Add to Home screen* in your browser menu to open it like an app.
+
+**Links**
+
+| What | Link |
+|---|---|
+| Play the game | https://football-game-in-c.onrender.com |
+| Leaderboard data (JSON) | https://football-game-in-c.onrender.com/api/leaderboard |
+| Source code | https://github.com/adilmahmudayon-hue/Football-game-in-C |
+
 ---
 
 ## 📌 Table of Contents
 
 - [Overview](#-overview)
 - [Features](#-features)
-- [Gameplay](#-gameplay)
+- [How to Play](#-how-to-play)
 - [Levels and Ranks](#-levels-and-ranks)
-- [Game Workflow](#-game-workflow)
 - [Project Structure](#-project-structure)
-- [Module Responsibilities](#-module-responsibilities)
-- [Technologies Used](#-technologies-used)
-- [Installation and Execution](#-installation-and-execution)
-- [Web Version](#-web-version)
+- [Run the Web Version Locally](#-run-the-web-version-locally)
+- [Build the Console Version](#-build-the-console-version)
+- [Deploying Your Own Copy](#-deploying-your-own-copy)
 - [Data Storage](#-data-storage)
-- [Programming Concepts](#-programming-concepts)
+- [Technologies Used](#-technologies-used)
 - [Future Improvements](#-future-improvements)
 - [Author](#-author)
-- [License](#-license)
 
 ## 🎮 Overview
 
-Football Shootout combines precision aiming, power timing, a goalkeeper, score calculation and level-based progression.
+Players register or log in, pick a level, aim at a cell inside the goal and stop a power bar. The power decides how high the ball lands compared to the target. The game awards points and checks whether the player reached the target score to unlock the next level.
 
-Players register or log in, pick a level, aim at a cell inside the goal and stop a power bar. The power decides how high the ball lands relative to the target. The game awards points and checks whether the player reached the target score to unlock the next level.
-
-The C version follows a **modular programming approach**, separating the main game flow from goal rendering, keyboard input, player management, level configuration, power control and utilities. The web version reuses the same game rules and the same `players.txt` file, so one account works in both.
+The C version follows a modular approach, with separate modules for the goal, input, players, levels, power and utilities. The web version uses the same game rules, with accounts stored in an online database.
 
 ## ✨ Features
 
 ### Both versions
 
-- **Player accounts:** registration and login.
-- **Interactive aiming:** move across a 9x4 goal with the arrow keys and lock a target.
-- **Power bar:** stopping the bar controls the height of the shot.
-- **Scoring grid:** corners and edges are worth the most.
-- **15 levels** with 3 shots each, a target score and a tighter power zone as levels rise.
-- **Difficulty ranks:** Beginner, Easy, Medium, Hard and Pro.
-- **Level select:** locked levels tell you which level to complete first, and a preview screen offers Play or Back.
-- **Progression:** unlock the next level by reaching the target score, or repeat a failed level.
-- **Saved stats:** high score, total score, games played and current level.
-- **Leaderboard:** top players by high score.
-- **Quit and log out** options.
+- Player accounts: registration and login
+- 9x4 goal with a points grid (corners and edges are worth the most)
+- Power bar that controls the height of the shot
+- 15 levels with 3 shots each and a target score
+- Ranks: Beginner, Easy, Medium, Hard and Pro
+- **Goalkeeper** from level 4. He slides across the goal, catches shots on his middle column and pushes them away on his sides. He is faster and taller on higher levels.
+- **Vanishing targets** from level 6: a target you score on disappears for the rest of the level
+- **Moving goal** from level 11: the goal slides left and right, so you have to aim ahead of it
+- Level select with locked levels and a Play / Back preview
+- Saved high score, total score, games played and current level
+- Leaderboard of the top players
 
 ### Console version
 
-- **Ball flight animation** with ANSI colors.
-- **Goalkeeper** from level 4. He slides across the goal, catches shots on his middle column and pushes them away on his sides. He gets faster and taller on higher levels.
-- **Vanishing targets** from level 6: a target you score on disappears.
-- **Moving goal** from level 11: the goal slides left and right, so you have to aim ahead of it.
+- ANSI colors and a text-based ball flight animation
+- Accounts saved locally in `data/players.txt`
 
 ### Web version
 
-- Canvas graphics: goal, net, grass, power bar and animated ball.
-- Quit level button (or Esc) during play.
-- Accounts and scores saved by the Node server in `data/players.txt`.
-- Goalkeeper, vanishing targets and moving goal are not in the web version yet.
+- Canvas graphics: goal, net, grass, goalkeeper, power bar and animated ball
+- Touch controls for phones
+- Online accounts with **hashed passwords** stored in a Supabase (Postgres) database
+- Quit level button during play
 
-## 🕹️ Gameplay
+## 🕹️ How to Play
 
-1. Launch the game and choose Login, Register, Leaderboard or Quit.
-2. After logging in, open the main menu: Play, Select level, My stats, Leaderboard, Log out.
-3. Continue from your current level or pick any unlocked level.
-4. Review the level's shots, target score and exact power zone.
-5. Use the arrow keys to select a target inside the goal.
-6. Press Enter to lock the target.
-7. Stop the power bar with a key press.
-8. Watch the shot and read the feedback.
-9. Reach the target score before you run out of shots.
-10. Unlock the next level or repeat the current one.
+1. Register an account or log in.
+2. Choose **Play** to continue, or **Select level** to pick an unlocked level.
+3. Move the target over the goal.
+4. Lock the target.
+5. Stop the power bar.
+6. Reach the target score before you run out of shots to unlock the next level.
+
+### Controls
+
+| Action | Keyboard | Phone |
+|---|---|---|
+| Move target | Arrow keys | Arrow buttons |
+| Lock target | Enter | LOCK / SHOOT |
+| Stop power bar | Space or Enter (any key in console) | LOCK / SHOOT |
+| Quit level | Esc (Q in console) | Quit level button |
 
 ### Shot outcomes
 
-| Shot result | Outcome |
+| Power | Result |
 |---|---|
-| Power in the exact zone | The ball lands on your target and earns its points. |
-| Power above the zone | The ball lands 1 or 2 rows higher and may still score. |
-| Power below the zone | The ball lands 1 or 2 rows lower and may still score. |
-| Top-row target with too much power | Over the bar, no points. |
-| Bottom-row target with too little power | Hits the ground before the goal, no points. |
-| Lands on the goalkeeper (console) | Caught or pushed away, no points. |
-| Goal moved away (console, levels 11+) | Missed wide, no points. |
-
-A level is completed when the final score meets or exceeds its target score.
+| In the exact zone | The ball lands on your target. |
+| Above the zone | The ball lands 1 or 2 rows higher and may still score. |
+| Below the zone | The ball lands 1 or 2 rows lower and may still score. |
+| Top-row target, too much power | Over the bar, no points. |
+| Bottom-row target, too little power | Hits the ground, no points. |
+| Lands on the goalkeeper | Caught or pushed away, no points. The target does not vanish. |
+| Lands on a vanished target | The ball flies through the gap, no points. |
+| Goal has moved away (levels 11+) | The ball goes wide, no points. |
 
 ## 🏆 Levels and Ranks
 
-| Level | Rank | Target | Bar speed | Exact zone | Extra mechanics (console) |
+| Level | Rank | Target | Bar speed | Exact zone | Mechanics |
 |---|---|---|---|---|---|
 | 1 | Beginner | 5 | 2 | 35% - 70% | none |
 | 2 | Beginner | 7 | 3 | 40% - 70% | none |
@@ -108,122 +119,113 @@ A level is completed when the final score meets or exceeds its target score.
 | 12 | Hard | 10 | 6 | 64% - 74% | + moving goal |
 | 13 | Pro | 11 | 7 | 66% - 74% | + faster moving goal |
 | 14 | Pro | 12 | 7 | 66% - 74% | + faster moving goal |
-| 15 | Pro | 13 | 7 | 68% - 76% | fastest goal and keeper |
-
-## 🔄 Game Workflow
-
-```mermaid
-flowchart TD
-    A([Start Game]) --> C[Login / Register Menu]
-    C -->|Register| D[Create Player Account]
-    C -->|Login| E[Authenticate Player]
-    D --> E
-    E -->|Success| F[Main Game Menu]
-    E -->|Failure| C
-    F --> G{Choose Action}
-    G -->|Play| H[Load Current Level]
-    G -->|Select Level| I[Check Level Access]
-    I -->|Unlocked| H
-    I -->|Locked| F
-    G -->|My Stats| J[Display Player Statistics]
-    G -->|Leaderboard| K[Display Leaderboard]
-    J --> F
-    K --> F
-    H --> L[Select Target Cell]
-    L --> M[Lock Target]
-    M --> N[Stop Power Bar]
-    N --> O[Evaluate Shot]
-    O --> P[Animate and Score Shot]
-    P --> Q{Shots Remaining?}
-    Q -->|Yes| L
-    Q -->|No| R[Calculate Final Score]
-    R --> S{Target Reached?}
-    S -->|Yes| T[Save Score and Unlock Next Level]
-    S -->|No| U[Save Score and Offer Replay]
-    T --> V{More Levels?}
-    V -->|Yes| W[Next Level or Menu]
-    W --> F
-    V -->|No| X([Game Completed])
-    U -->|Replay| H
-    U -->|Quit Level| F
-    G -->|Log out| C
-    C -->|Quit| Y([Exit])
-    X --> Y
-```
-
-### How the modules cooperate
-
-- `main.c` controls the application flow and calls the other modules.
-- `player` handles accounts, statistics, score recording and progress.
-- `level` provides each level's settings and its rank name.
-- `goal` draws the goal, the goalkeeper and the ball animation, and handles vanishing targets and the moving goal.
-- `input` reads keyboard actions.
-- `power` runs the power bar and decides where the shot lands.
-- `utils` provides console and timing helpers.
+| 15 | Pro | 13 | 7 | 68% - 76% | fastest goal and goalkeeper |
 
 ## 📂 Project Structure
 
 ```text
 Football-game-in-C/
-│
-├── src/
-│   └── main.c
-│
-├── goal/
-│   ├── goal.c
-│   └── goal.h
-│
-├── input/
-│   ├── input.c
-│   └── input.h
-│
-├── level/
-│   ├── level.c
-│   └── level.h
-│
-├── player/
-│   ├── player.c
-│   └── player.h
-│
-├── power/
-│   ├── power.c
-│   └── power.h
-│
-├── utils/
-│   ├── utils.c
-│   └── utils.h
-│
-├── web/
+├── src/main.c            console game: menus and level loop
+├── goal/                 goal, goalkeeper, vanishing targets, animation
+├── input/                keyboard input
+├── level/                level settings and rank names
+├── player/               accounts, stats, leaderboard (console)
+├── power/                power bar and shot evaluation
+├── utils/                console and timing helpers
+├── web/                  web game
 │   ├── index.html
 │   ├── style.css
-│   ├── game.js
-│   ├── levels.js
-│   └── menu.js
-│
-├── data/              (created automatically, not uploaded to GitHub)
-│   └── players.txt
-│
-├── server.js
-├── .gitignore
+│   ├── game.js           canvas game
+│   ├── levels.js         level data
+│   └── menu.js           login, menus, touch controls
+├── server.js             Node server: web files and API
+├── auth.js               password hashing
+├── import.js             one-time import of players.txt into Supabase
+├── package.json
+├── data/                 console game saves (not uploaded)
 └── README.md
 ```
 
-### Why separate `.c` and `.h` files?
+## 💻 Run the Web Version Locally
 
-- **`.c` files** contain the function implementations and logic.
-- **`.h` files** declare the functions, structures, enumerations and constants other modules need.
-- **`src/main.c`** coordinates the modules through their public interfaces.
+Requirements: Node.js and a free Supabase project (see [Deploying Your Own Copy](#-deploying-your-own-copy)).
 
-This makes the project easier to maintain, test, debug and extend.
+```powershell
+npm install
+$env:SUPABASE_URL = "https://YOUR-PROJECT.supabase.co"
+$env:SUPABASE_SERVICE_KEY = "YOUR-SECRET-KEY"
+node server.js
+```
 
-## 🧩 Module Responsibilities
+Open http://localhost:3000. The two variables only last for the terminal window where you set them.
 
-| Module | Responsibility |
-|---|---|
-| `src/main.c` | Menus, login flow, aiming, level loop, level select and progression |
-| `goal/` | Goal grid, drawing, goalkeeper, vanishing targets, moving goal, ball animation |
-| `input/` | Keyboard input and key-event handling |
-| `level/` | Level settings (shots, target, bar speed, zone, mechanics) and rank names |
-| `player/` | Registration, login, statistics, leaderboard, score recording and progress |
-| `power/` | Power bar and shot evaluation (exact, higher, lower, over, under) |
-| `utils/` | Console
+## 🖥️ Build the Console Version
+
+Requirements: Windows, GCC (MinGW), and a terminal with ANSI color support (VS Code terminal or Windows Terminal).
+
+```powershell
+gcc src/main.c goal/goal.c input/input.c utils/utils.c player/player.c level/level.c power/power.c -Igoal -Iinput -Iutils -Iplayer -Ilevel -Ipower -o game.exe
+.\game.exe
+```
+
+Run it from the repository root so the `data/` folder is created there.
+
+## ☁️ Deploying Your Own Copy
+
+The game is hosted on [Render](https://render.com) as a Node web service.
+
+1. Create a Supabase project and run this in its SQL Editor:
+
+```sql
+create table players (
+  name text primary key,
+  password_hash text not null,
+  high_score int not null default 0,
+  games_played int not null default 0,
+  total_score int not null default 0,
+  level int not null default 1
+);
+alter table players enable row level security;
+```
+
+2. On Render, create a **Web Service** from your GitHub repo with Build Command `npm install` and Start Command `npm start`.
+3. Add the environment variables `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` (the **secret** key) in Render's **Environment** settings.
+4. Keep the secret key private. Never commit it to the repository.
+
+## 💾 Data Storage
+
+- **Web version:** players are stored in a Supabase Postgres table. Passwords are hashed with scrypt and salted. Data survives restarts and redeploys.
+- **Console version:** players are stored locally in `data/players.txt`, which is not uploaded to GitHub.
+- The two versions keep **separate accounts and scores**. An account created on the website cannot be used in the console game, and the other way round.
+
+## 🛠️ Technologies Used
+
+- **C** and **GCC (MinGW)** for the console game
+- **ANSI escape sequences** and Windows console APIs for terminal graphics and input
+- **HTML5 canvas, CSS and JavaScript** for the web game
+- **Node.js** for the server
+- **Supabase (Postgres)** for online data storage
+- **Render** for hosting
+- **Git and GitHub** for version control
+
+## 🔮 Future Improvements
+
+- [ ] Sound effects
+- [ ] Screenshots and a gameplay demo
+- [ ] Shared accounts between the console and web versions
+- [ ] Persistent login sessions
+- [ ] Rank shown in the web in-game display
+- [ ] Add a license
+
+## 👨‍💻 Author
+
+**Adil Mahmud Ayon**
+
+- GitHub: [@adilmahmudayon-hue](https://github.com/adilmahmudayon-hue)
+- Project: [Football-game-in-C](https://github.com/adilmahmudayon-hue/Football-game-in-C)
+
+---
+
+⭐ If you like this project, consider starring the repository!
+
+**Built with C, JavaScript and a passion for football. ⚽**
