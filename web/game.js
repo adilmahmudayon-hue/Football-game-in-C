@@ -59,6 +59,8 @@ function resetTargets() {
   for (let r = 0; r < ROWS; r++) vanished.push(new Array(COLS).fill(false));
 }
 
+resetTargets();
+
 // moving goal
 let goalShift = 0;
 let goalDir = 1;
@@ -581,11 +583,17 @@ function draw() {
 
 // ---------- main loop ----------
 let last = performance.now();
+
 function loop(now) {
   const dt = Math.min((now - last) / 1000, 0.05);
   last = now;
-  update(dt);
-  draw();
+  try {
+    update(dt);
+    draw();
+  } catch (e) {
+    console.error(e);
+  }
   requestAnimationFrame(loop);
 }
+
 requestAnimationFrame(loop);
