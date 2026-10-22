@@ -16,6 +16,79 @@ let token = null;
 
 quitBtn.onclick = () => quitToMenu();
 
+// ---------- helper bot ----------
+const bot = document.getElementById("bot");
+const botImg = document.getElementById("botImg");
+const botBubble = document.getElementById("botBubble");
+let botTip = "";
+
+function say(text) {
+  if (text === botTip) return;
+  botTip = text;
+  botBubble.textContent = text;
+}
+
+// the first match wins, so the order matters
+const SCREEN_TIPS = [
+  ["LEVEL COMPLETE", "Great shooting! Press Next level to keep going, or go back to the menu."],
+  ["LEVEL FAILED", "So close! Repeat the level and stop the bar in the green zone."],
+  ["FOOTBALL SHOOTOUT", "Hi! Type a username and password, then press Login. New here? Press Register."],
+  ["SELECT LEVEL", "Pick an unlocked level. A locked level opens when you beat the one before it."],
+  ["LEVEL ", "Check the target score, then press Play. Ready?"],
+  ["MY STATS", "These are your numbers. Beat your high score!"],
+  ["LEADERBOARD", "Players are ranked by level first, then total score. Climb higher!"],
+  ["MENU", "Press Play to continue, or Select level to replay an old one."],
+  ["Thanks", "See you next time!"],
+  ["Could not save", "Something went wrong. Go back to the menu and log in again."],
+];
+
+function updateTip() {
+  const h = ui.querySelector("h1, h2");
+  const title = h ? h.textContent.trim() : "";
+  const hit = SCREEN_TIPS.find(([key]) => title.startsWith(key));
+  say(hit ? hit[1] : "Follow the buttons on the screen. I'm here if you need help!");
+}
+
+// tips while a level is being played (state, level and running come from game.js)
+function gameTip() {
+  if (state === "aim") {
+    let t = "Move the yellow box with the arrows, then press LOCK / Enter.";
+    if (level.vanish) t += " Targets you score on vanish!";
+    if (level.keeperRows) t += " Aim away from the goalkeeper.";
+    return t;
+  }
+  if (state === "power") {
+    return level.sway
+      ? "The goal is moving! Stop the bar in the green zone."
+      : "Press Space or SHOOT when the marker is in the green zone!";
+  }
+  if (state === "flying") return "Here it goes...";
+  if (state === "result") return "Read the result below the goal. Next shot coming up!";
+  return "";
+}
+setInterval(() => { if (running) say(gameTip()); }, 250);
+
+// click the sticker to hide or show the bubble, drag it to move it
+let drag = null;
+botImg.addEventListener("pointerdown", (e) => {
+  const r = bot.getBoundingClientRect();
+  drag = { dx: e.clientX - r.left, dy: e.clientY - r.top,
+           x: e.clientX, y: e.clientY, moved: false };
+  botImg.setPointerCapture(e.pointerId);
+});
+botImg.addEventListener("pointermove", (e) => {
+  if (!drag) return;
+  if (Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y) > 6) drag.moved = true;
+  if (!drag.moved) return;
+  bot.style.left = Math.max(0, Math.min(innerWidth - bot.offsetWidth, e.clientX - drag.dx)) + "px";
+  bot.style.top = Math.max(0, Math.min(innerHeight - bot.offsetHeight, e.clientY - drag.dy)) + "px";
+  bot.style.bottom = "auto";
+});
+botImg.addEventListener("pointerup", () => {
+  if (drag && !drag.moved) bot.classList.toggle("quiet");
+  drag = null;
+});
+
 // ---------- server calls ----------
 async function api(route, body) {
   try {
@@ -42,6 +115,7 @@ function show(html, solid) {
   ui.className = solid === false ? "clear" : "solid";
   ui.innerHTML = html;
   ui.style.display = "flex";
+    updateTip();
 }
 function hide() { ui.style.display = "none"; }
 function on(id, fn) { document.getElementById(id).onclick = fn; }

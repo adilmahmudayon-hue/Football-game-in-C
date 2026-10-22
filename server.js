@@ -163,6 +163,7 @@ async function handleApi(req, res, route) {
 const TYPES = {
   ".html": "text/html", ".css": "text/css", ".js": "text/javascript",
   ".png": "image/png", ".ico": "image/x-icon", ".svg": "image/svg+xml",
+  ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp",
 };
 
 function serveStatic(res, pathname) {
