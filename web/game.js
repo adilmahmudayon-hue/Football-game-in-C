@@ -215,6 +215,10 @@ function restart() {
   resetKeeper();
   resetTargets();
   resetGoal();
+
+   crowdMood = "idle";       
+  crowdTimer = 0;           
+  confetti = [];            
   state = "aim";
 }
 
@@ -264,6 +268,9 @@ document.addEventListener("keydown", (e) => {
 
 // ---------- update ----------
 function update(dt) {
+
+  updateCrowd(dt);
+
   if (!running) return;
 
   if (state === "aim") {
@@ -284,6 +291,8 @@ function update(dt) {
         flight.t = 1;
         score += pendingPoints;
         message = pendingText;
+         reactToShot(pendingPoints > 0);
+
         if (pendingVanish) {
           vanished[pendingVanish[0]][pendingVanish[1]] = true;
           pendingVanish = null;
@@ -295,6 +304,222 @@ function update(dt) {
   } else if (state === "result") {
     resultTimer -= dt;
     if (resultTimer <= 0) startNextShotOrFinish();
+  }
+}
+
+// ---------- crowd ----------
+const SHIRTS = ["#e63946", "#f1c40f", "#2a9d8f", "#3a86ff", "#ff7f50",
+                "#9b5de5", "#ffffff", "#ff4d9d"];
+const SKINS = ["#f2c9a0", "#d9a066", "#a8714a", "#7a4b2a"];
+const HAIRS = ["#1b1b1b", "#3b2a1a", "#6b4423", "#c9a227", "#222222"];
+
+let crowdMood = "idle"; // idle | cheer | cry
+let crowdTimer = 0;
+let crowdText = "";
+let confetti = [];
+
+const crowd = [];
+(function buildCrowd() {
+  let seed = 7;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let r = 0; r < 7; r++) {
+    for (let x = 12 + (r % 2) * 17; x < canvas.width; x += 34) {
+      crowd.push({
+        x: x + (rnd() - 0.5) * 8,
+        y: 52 + r * 38 + (rnd() - 0.5) * 5,
+        s: 0.75 + r * 0.05, // back rows look smaller
+        shirt: SHIRTS[Math.floor(rnd() * SHIRTS.length)],
+        skin: SKINS[Math.floor(rnd() * SKINS.length)],
+        hair: HAIRS[Math.floor(rnd() * HAIRS.length)],
+        phase: rnd() * 6.28,
+      });
+    }
+  }
+})();
+
+const pick = (list) => list[Math.floor(Math.random() * list.length)];
+
+function spawnConfetti(n) {
+  const cols = SHIRTS.concat(["#ffd23f"]);
+  for (let i = 0; i < n; i++) {
+    confetti.push({
+      x: Math.random() * canvas.width,
+      y: -10 - Math.random() * 120,
+      vx: (Math.random() - 0.5) * 60,
+      vy: 90 + Math.random() * 160,
+      rot: Math.random() * 6.28,
+      vr: (Math.random() - 0.5) * 10,
+      c: pick(cols),
+    });
+  }
+}
+
+function reactToShot(scored) {
+  crowdTimer = 2.2;
+  if (scored) {
+    crowdMood = "cheer";
+    crowdText = pick(["GOOOAL!", "YEAH!", "WHAT A SHOT!"]);
+    spawnConfetti(pendingPoints >= 4 ? 140 : 70);
+  } else {
+    crowdMood = "cry";
+    crowdText = pick(["NOOO!", "SO CLOSE!", "OH NO..."]);
+  }
+}
+
+function updateCrowd(dt) {
+  if (crowdTimer > 0) {
+    crowdTimer -= dt;
+    if (crowdTimer <= 0) { crowdMood = "idle"; crowdText = ""; }
+  }
+  for (const c of confetti) {
+    c.x += c.vx * dt;
+    c.y += c.vy * dt;
+    c.rot += c.vr * dt;
+  }
+  confetti = confetti.filter((c) => c.y < canvas.height + 10);
+}
+
+function drawPerson(p, t) {
+  const s = p.s;
+  let bob;
+  if (crowdMood === "cheer") bob = -Math.abs(Math.sin(t * 9 + p.phase)) * 11;
+  else if (crowdMood === "cry") bob = 3 + Math.sin(t * 3 + p.phase) * 1.2;
+  else bob = Math.sin(t * 2 + p.phase) * 1.5;
+  const cx = p.x, cy = p.y + bob;
+
+  ctx.lineCap = "round";
+
+  // cheering arms go up behind the body
+  if (crowdMood === "cheer") {
+    const w = Math.sin(t * 12 + p.phase) * 4;
+    ctx.strokeStyle = p.skin;
+    ctx.lineWidth = 4 * s;
+    ctx.beginPath();
+    ctx.moveTo(cx - 10 * s, cy + 12 * s);
+    ctx.lineTo(cx - 17 * s + w, cy - 14 * s);
+    ctx.moveTo(cx + 10 * s, cy + 12 * s);
+    ctx.lineTo(cx + 17 * s - w, cy - 14 * s);
+    ctx.stroke();
+    ctx.fillStyle = p.skin;
+    ctx.beginPath();
+    ctx.arc(cx - 17 * s + w, cy - 14 * s, 2.6 * s, 0, Math.PI * 2);
+    ctx.arc(cx + 17 * s - w, cy - 14 * s, 2.6 * s, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // body
+  ctx.fillStyle = p.shirt;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + 17 * s, 12 * s, 14 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // head and hair
+  ctx.fillStyle = p.skin;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 8 * s, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = p.hair;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 8.4 * s, Math.PI, 0);
+  ctx.fill();
+
+  // eyes
+  ctx.fillStyle = "#222";
+  ctx.beginPath();
+  ctx.arc(cx - 3 * s, cy, 1.1 * s, 0, Math.PI * 2);
+  ctx.arc(cx + 3 * s, cy, 1.1 * s, 0, Math.PI * 2);
+  ctx.fill();
+
+  // mouth
+  if (crowdMood === "cheer") {
+    ctx.fillStyle = "#7a1f1f";
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + 3.5 * s, 2.8 * s, 3.2 * s, 0, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (crowdMood === "cry") {
+    ctx.strokeStyle = "#222";
+    ctx.lineWidth = 1.3 * s;
+    ctx.beginPath();
+    ctx.arc(cx, cy + 6.5 * s, 2.8 * s, Math.PI * 1.15, Math.PI * 1.85);
+    ctx.stroke();
+    // tears
+    const off = (t * 22 + p.phase * 5) % 12;
+    ctx.fillStyle = "#5bc0ff";
+    ctx.beginPath();
+    ctx.arc(cx - 3 * s, cy + 2 * s + off * s, 1.5 * s, 0, Math.PI * 2);
+    ctx.arc(cx + 3 * s, cy + 2 * s + off * s, 1.5 * s, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    ctx.strokeStyle = "#222";
+    ctx.lineWidth = 1.2 * s;
+    ctx.beginPath();
+    ctx.arc(cx, cy + 2.5 * s, 3 * s, Math.PI * 0.15, Math.PI * 0.85);
+    ctx.stroke();
+  }
+
+  // crying: hands on the face
+  if (crowdMood === "cry") {
+    ctx.strokeStyle = p.skin;
+    ctx.lineWidth = 4 * s;
+    ctx.beginPath();
+    ctx.moveTo(cx - 10 * s, cy + 14 * s);
+    ctx.lineTo(cx - 6 * s, cy + 4 * s);
+    ctx.moveTo(cx + 10 * s, cy + 14 * s);
+    ctx.lineTo(cx + 6 * s, cy + 4 * s);
+    ctx.stroke();
+  }
+}
+
+function drawCrowd() {
+  const t = performance.now() / 1000;
+
+  // the stand
+  const g = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
+  g.addColorStop(0, "#1d2230");
+  g.addColorStop(1, "#3a4256");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, canvas.width, GROUND_Y);
+  for (let r = 0; r < 7; r++) {
+    ctx.fillStyle = r % 2 ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.12)";
+    ctx.fillRect(0, 62 + r * 38, canvas.width, 38);
+  }
+
+  for (const p of crowd) drawPerson(p, t);
+
+  // advertising board in front of the stand
+  ctx.fillStyle = "#12326b";
+  ctx.fillRect(0, GROUND_Y - 18, canvas.width, 18);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 11px Arial";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  for (let x = 10; x < canvas.width; x += 150) {
+    ctx.fillText("FOOTBALL SHOOTOUT", x, GROUND_Y - 9);
+  }
+  ctx.textBaseline = "alphabetic";
+}
+
+function drawCrowdEffects() {
+  for (const c of confetti) {
+    ctx.save();
+    ctx.translate(c.x, c.y);
+    ctx.rotate(c.rot);
+    ctx.fillStyle = c.c;
+    ctx.fillRect(-4, -2, 8, 4);
+    ctx.restore();
+  }
+  if (crowdTimer > 0 && crowdText) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, crowdTimer / 0.6);
+    ctx.font = "bold 46px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.lineWidth = 7;
+    ctx.strokeStyle = "#000000";
+    ctx.strokeText(crowdText, canvas.width / 2, 392);
+    ctx.fillStyle = crowdMood === "cheer" ? "#ffd23f" : "#8ecbff";
+    ctx.fillText(crowdText, canvas.width / 2, 392);
+    ctx.restore();
   }
 }
 
@@ -321,7 +546,7 @@ function drawBackground() {
 }
 
 function drawNet() {
-  ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+  ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
   ctx.fillRect(GOAL_X, GOAL_Y, GOAL_W, GOAL_H);
   ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
   ctx.lineWidth = 1;
@@ -559,6 +784,7 @@ function drawHud() {
 
 function draw() {
   drawBackground();
+  drawCrowd();
 
   ctx.save();
   ctx.translate(goalShift, 0);
@@ -578,6 +804,7 @@ function draw() {
   }
 
   if (state === "power") drawPowerBar();
+  drawCrowdEffects();
   drawHud();
 }
 
