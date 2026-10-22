@@ -200,21 +200,31 @@ function showStats() {
 }
 
 async function showLeaderboard(backFn) {
-  const r = await api("leaderboard");
-  let rows;
+  const r = await api("leaderboard" + (token ? "?token=" + encodeURIComponent(token) : ""));
+  let body;
   if (r.error) {
-    rows = r.top.map((u, i) =>
-      `<tr><td>${i + 1}</td><td>${esc(u.name)}</td><td>L${u.level}</td>
-       <td>${u.totalScore}</td><td>${u.highScore}</td></tr>`).join("");
+    body = `<p class="msg">${esc(r.error)}</p>`;
   } else {
-    rows = r.top.map((u, i) =>
-      `<tr><td>${i + 1}</td><td>${esc(u.name)}</td><td>${u.highScore}</td>
-       <td>L${u.level}</td></tr>`).join("");
-    if (!rows) rows = `<tr><td colspan="5">No players yet.</td></tr>`;
+    let rows = r.top.map((u, i) =>
+      `<tr class="${r.me && u.name === r.me.name ? "me" : ""}">
+         <td>${i + 1}</td><td>${esc(u.name)}</td><td>L${u.level}</td>
+         <td>${u.totalScore}</td></tr>`).join("");
+    if (!rows) rows = `<tr><td colspan="4">No players yet.</td></tr>`;
+
+    const mine = r.me
+      ? `<div class="mybox">Your position: <b>${r.me.rank}</b> of
+           <b>${r.total}</b> players<br>
+           ${esc(r.me.name)} &middot; Level ${r.me.level} &middot;
+           Total ${r.me.totalScore}</div>`
+      : `<p>${r.total} players have played.</p>`;
+
+    body = `<div class="levels"><table>
+        <tr><th>#</th><th>Name</th><th>Level</th><th>Total</th></tr>${rows}
+      </table></div>${mine}`;
   }
   show(`<div class="panel">
-    <h2>TOP PLAYERS</h2>
-        <table><tr><th>#</th><th>Name</th><th>Level</th><th>Total</th></tr>${rows}</table>
+    <h2>LEADERBOARD</h2>
+    ${body}
     <button id="back">Back</button>
   </div>`);
   on("back", backFn);

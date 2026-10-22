@@ -137,3 +137,17 @@ body { flex-direction: column; }
   font-weight: bold;
 }
 #actBtn:active { background: #3ad36a; }
+
+tr.me td {
+  background: rgba(47, 191, 91, 0.25);
+  color: #ffd23f;
+  font-weight: bold;
+}
+.mybox {
+  margin: 10px 0;
+  padding: 10px;
+  border: 2px solid #ffd23f;
+  border-radius: 8px;
+  background: rgba(255, 210, 63, 0.12);
+  color: #ffd23f;
+}
