@@ -30,6 +30,9 @@ function say(text) {
 
 // the first match wins, so the order matters
 const SCREEN_TIPS = [
+    ["FOOTBALL SHOOTOUT", "Hi! Choose Login if you have an account, or Register to make one."],
+  ["LOGIN", "Type your username and password, then press Login."],
+  ["REGISTER", "Pick a username, add your email and a password, then press Create account."],
   ["LEVEL COMPLETE", "Great shooting! Press Next level to keep going, or go back to the menu."],
   ["LEVEL FAILED", "So close! Repeat the level and stop the bar in the green zone."],
   ["FOOTBALL SHOOTOUT", "Hi! Type a username and password, then press Login. New here? Press Register."],
@@ -124,57 +127,95 @@ function on(id, fn) { document.getElementById(id).onclick = fn; }
 function showLogin(msg) {
   show(`<div class="panel">
     <h1>FOOTBALL SHOOTOUT</h1>
-    <p>Log in or create an account</p>
-    <input id="u" placeholder="Username" maxlength="19" autocomplete="username">
-    <input id="p" type="password" placeholder="Password" maxlength="19">
+    <p>Welcome! Choose an option</p>
     <p class="msg">${esc(msg || "")}</p>
     <button id="login">Login</button>
     <button id="reg" class="secondary">Register</button>
     <button id="lb" class="secondary">Leaderboard</button>
     <button id="quit" class="secondary">Quit</button>
   </div>`);
-  on("login", doLogin);
-  on("reg", doRegister);
+  on("login", () => showLoginForm());
+  on("reg", () => showRegisterForm());
   on("lb", () => showLeaderboard(() => showLogin()));
   on("quit", showGoodbye);
+}
+
+function showLoginForm(msg) {
+  show(`<div class="panel">
+    <h2>LOGIN</h2>
+    <input id="u" placeholder="Username" maxlength="19" autocomplete="username">
+    <input id="p" type="password" placeholder="Password" maxlength="19"
+           autocomplete="current-password">
+    <p class="msg">${esc(msg || "")}</p>
+    <button id="go">Login</button>
+    <button id="back" class="secondary">Back</button>
+  </div>`);
+  on("go", doLogin);
+  on("back", () => showLogin());
   document.getElementById("p").onkeydown = (e) => {
     if (e.key === "Enter") doLogin();
   };
+  document.getElementById("u").focus();
+}
+
+function showRegisterForm(msg, v) {
+  v = v || {};
+  show(`<div class="panel">
+    <h2>REGISTER</h2>
+    <input id="u" placeholder="Username" maxlength="19" value="${esc(v.name || "")}"
+           autocomplete="username">
+    <input id="e" type="email" placeholder="Email" maxlength="100"
+           value="${esc(v.email || "")}" autocomplete="email">
+    <input id="p" type="password" placeholder="Password" maxlength="19"
+           autocomplete="new-password">
+    <p class="msg">${esc(msg || "")}</p>
+    <button id="go">Create account</button>
+    <button id="back" class="secondary">Back</button>
+  </div>`);
+  on("go", doRegister);
+  on("back", () => showLogin());
+  document.getElementById("p").onkeydown = (e) => {
+    if (e.key === "Enter") doRegister();
+  };
+  document.getElementById("u").focus();
 }
 
 function showGoodbye() {
   show(`<div class="panel">
     <h1>Thanks for playing!</h1>
     <p>You can close this tab now.</p>
-    <button id="again">Back to login</button>
+    <button id="again">Back to home</button>
   </div>`);
   on("again", () => showLogin());
 }
 
-function readCredentials() {
-  return {
-    name: document.getElementById("u").value.trim(),
-    password: document.getElementById("p").value,
-  };
-}
-
 async function doLogin() {
-  const c = readCredentials();
-  if (!c.name || !c.password) return showLogin("Enter a username and a password.");
-  const r = await api("login", c);
-  if (r.error) return showLogin(r.error);
+  const name = document.getElementById("u").value.trim();
+  const password = document.getElementById("p").value;
+  if (!name || !password)
+    return showLoginForm("Enter a username and a password.");
+  const r = await api("login", { name, password });
+  if (r.error) return showLoginForm(r.error);
   user = r.user;
   token = r.token;
   showMenu();
 }
 
 async function doRegister() {
-  const c = readCredentials();
-  if (!c.name || !c.password) return showLogin("Enter a username and a password.");
-  if (/\s/.test(c.name) || /\s/.test(c.password))
-    return showLogin("No spaces allowed in the username or password.");
-  const r = await api("register", c);
-  if (r.error) return showLogin(r.error);
+  const name = document.getElementById("u").value.trim();
+  const email = document.getElementById("e").value.trim();
+  const password = document.getElementById("p").value;
+  const keep = { name, email };
+
+  if (!name || !email || !password)
+    return showRegisterForm("Fill in the username, email and password.", keep);
+  if (/\s/.test(name) || /\s/.test(password))
+    return showRegisterForm("No spaces allowed in the username or password.", keep);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    return showRegisterForm("Enter a valid email address.", keep);
+
+  const r = await api("register", { name, email, password });
+  if (r.error) return showRegisterForm(r.error, keep);
   user = r.user;
   token = r.token;
   showMenu();
