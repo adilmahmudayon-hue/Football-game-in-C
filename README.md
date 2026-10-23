@@ -1,14 +1,15 @@
 # ⚽ Football Shootout — Football Shooting Game in C and JavaScript
 
-A football shooting game with two versions: a **terminal game in C** (Windows) and an **online web game** you can play from anywhere, on desktop or phone. Aim at regions of the goal, time your shot power, beat the goalkeeper, and clear 15 levels while a crowd cheers or cries behind the goal.
+A football shooting game with two versions: a **terminal game in C** (Windows) and an **online web game** you can play from anywhere, on desktop or phone. Aim at regions of the goal, time your shot power, beat the goalkeeper, and clear 15 levels while a crowd cheers, claps or cries behind the goal.
 
 ## 🌍 Play Online
 
 **👉 [Play now: football-game-in-c.vercel.app](https://football-game-in-c.vercel.app)**
 
 - Works on desktop (keyboard) and on phones (on-screen touch buttons).
-- Create an account or log in, and your progress is saved online.
+- Create an account with a username, email and password, and your progress is saved online.
 - A helper sticker gives tips on every screen. Drag it anywhere, or tap it to hide the speech bubble.
+- Sound effects play after your first click or key press. Use the 🔊 button in the top-right corner to mute.
 - On a phone, turn the screen sideways for a bigger goal, and use *Add to Home screen* in your browser menu to open it like an app.
 
 **Links**
@@ -26,6 +27,7 @@ A football shooting game with two versions: a **terminal game in C** (Windows) a
 - [Overview](#-overview)
 - [Features](#-features)
 - [How to Play](#-how-to-play)
+- [Workflow](#-workflow)
 - [Levels and Ranks](#-levels-and-ranks)
 - [Leaderboard](#-leaderboard)
 - [Project Structure](#-project-structure)
@@ -67,7 +69,10 @@ The C version follows a modular approach, with separate modules for the goal, in
 
 - Canvas graphics: goal, net, grass, goalkeeper, power bar and animated ball
 - **Crowd** behind the goal that sways while you aim, jumps with confetti when you score, and cries when you miss
+- **Sound effects:** a referee whistle before every shot, applause and a cheer on a goal, groans and sobs on a miss, and a big celebration when you pass a level. A mute button remembers your choice.
 - **Helper sticker** with tips that change on every screen and follow the game while you play
+- Home page with options only (Login, Register, Leaderboard, Quit), and separate Login and Register forms
+- Registration with **username, email and password**
 - Touch controls for phones
 - Online accounts with **hashed passwords** stored in a Supabase (Postgres) database
 - Leaderboard with your own rank highlighted
@@ -78,7 +83,7 @@ The C version follows a modular approach, with separate modules for the goal, in
 1. Register an account or log in.
 2. Choose **Play** to continue, or **Select level** to pick an unlocked level.
 3. Move the target over the goal.
-4. Lock the target.
+4. Lock the target. The referee whistles.
 5. Stop the power bar.
 6. Reach the target score before you run out of shots to unlock the next level.
 
@@ -90,6 +95,7 @@ The C version follows a modular approach, with separate modules for the goal, in
 | Lock target | Enter | LOCK / SHOOT |
 | Stop power bar | Space or Enter (any key in console) | LOCK / SHOOT |
 | Quit level | Esc (Q in console) | Quit level button |
+| Sound on/off | 🔊 button (web) | 🔊 button (web) |
 
 ### Shot outcomes
 
@@ -103,6 +109,91 @@ The C version follows a modular approach, with separate modules for the goal, in
 | Lands on the goalkeeper | Caught or pushed away, no points. The target does not vanish. |
 | Lands on a vanished target | The ball flies through the gap, no points. |
 | Goal has moved away (levels 11+) | The ball goes wide, no points. |
+
+## 🔄 Workflow
+
+### 1. Player flow
+
+```mermaid
+flowchart TD
+    A([Open the game]) --> B[Home page: Login / Register / Leaderboard / Quit]
+    B -->|Register| C[Enter username, email and password]
+    B -->|Login| D[Enter username and password]
+    B -->|Leaderboard| LB[View top 15 players]
+    LB --> B
+    C --> E{Valid and not taken?}
+    E -->|No| C
+    E -->|Yes| F[Main menu]
+    D --> G{Correct password?}
+    G -->|No| D
+    G -->|Yes| F
+    F --> H{Choose}
+    H -->|Play| L[Load current level]
+    H -->|Select level| I{Level unlocked?}
+    I -->|No| F
+    I -->|Yes| P[Level preview: Play or Back]
+    P -->|Play| L
+    P -->|Back| F
+    H -->|My stats| S[Show statistics]
+    H -->|Leaderboard| LB2[Top 15 and your rank]
+    S --> F
+    LB2 --> F
+    H -->|Log out| B
+    L --> M[Aim: move the target]
+    M --> N[Lock target, whistle blows]
+    N --> O[Stop the power bar]
+    O --> R[Shot result, crowd reacts]
+    R --> Q{Shots left?}
+    Q -->|Yes| M
+    Q -->|No| T{Score reached target?}
+    T -->|Yes| U[Celebration, save score, unlock next level]
+    T -->|No| V[Save score, repeat or quit]
+    U --> W{More levels?}
+    W -->|Yes| X[Next level or menu]
+    W -->|No| Y([All 15 levels complete])
+    X --> F
+    V -->|Repeat| L
+    V -->|Quit| F
+```
+
+### 2. What happens to each shot
+
+```mermaid
+flowchart TD
+    A[Power bar stopped] --> B{Power vs exact zone}
+    B -->|Inside| C[Lands on the target row]
+    B -->|Above| D[Lands 1 or 2 rows higher]
+    B -->|Below| E[Lands 1 or 2 rows lower]
+    C --> F{Inside the goal?}
+    D --> F
+    E --> F
+    F -->|Above the bar| G[Over the bar]
+    F -->|Below the bottom row| H[Hits the ground]
+    F -->|Goal moved away| I[Wide of the post]
+    F -->|Yes| J{Goalkeeper on that cell?}
+    J -->|Yes| K[Saved: caught or pushed away]
+    J -->|No| L{Target already vanished?}
+    L -->|Yes| M[Ball flies through the gap]
+    L -->|No| N[GOAL: points added, target vanishes on levels 6+]
+    N --> O[Applause and confetti]
+    G --> P[Groan and tears]
+    H --> P
+    I --> P
+    K --> P
+    M --> P
+```
+
+### 3. How the online system works
+
+```mermaid
+flowchart LR
+    P[Player browser or phone] -->|loads pages| V[Vercel: static web files]
+    P -->|API calls: register, login, save, leaderboard| F[Vercel serverless functions in api/]
+    F -->|reads and writes players| D[(Supabase Postgres)]
+    F -->|checks| T[Signed login token, 7 days]
+    G[GitHub repository] -->|push to main redeploys| V
+    G -->|push to main redeploys| F
+```
 
 ## 🏆 Levels and Ranks
 
@@ -144,7 +235,8 @@ Football-game-in-C/
 │   ├── style.css
 │   ├── game.js           canvas game, crowd and goalkeeper
 │   ├── levels.js         level data
-│   ├── menu.js           login, menus, touch controls, helper sticker
+│   ├── menu.js           login, register, menus, touch controls, helper sticker
+│   ├── sound.js          sound effects (Web Audio, no audio files)
 │   └── sticker*.png      helper sticker image
 ├── api/                  serverless API (Vercel)
 │   ├── register.js
@@ -152,10 +244,8 @@ Football-game-in-C/
 │   ├── logout.js
 │   ├── save.js
 │   └── leaderboard.js
-├── lib/common.js         shared API code: database, signed tokens
+├── lib/common.js         shared API code: database, signed tokens, validation
 ├── auth.js               password hashing
-├── server.js             optional local Node server for testing
-├── import.js             one-time import of players.txt into Supabase
 ├── vercel.json           tells Vercel to serve the web/ folder
 ├── package.json
 ├── data/                 console game saves (not uploaded)
@@ -164,18 +254,14 @@ Football-game-in-C/
 
 ## 💻 Run the Web Version Locally
 
-Requirements: Node.js and a free Supabase project (see [Deploying Your Own Copy](#-deploying-your-own-copy)).
+Requirements: Node.js, a free Supabase project (see [Deploying Your Own Copy](#-deploying-your-own-copy)) and the Vercel CLI.
 
 ```powershell
 npm install
-$env:SUPABASE_URL = "https://YOUR-PROJECT.supabase.co"
-$env:SUPABASE_SERVICE_KEY = "YOUR-SECRET-KEY"
-node server.js
+npx vercel dev
 ```
 
-Open http://localhost:3000. The variables only last for the terminal window where you set them.
-
-`server.js` is a simple local server for testing. The online version runs the files in `api/` instead.
+Set `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` and `SESSION_SECRET` first (in a local `.env` file that is not committed, or with `vercel env pull`). Never commit these values.
 
 ## 🖥️ Build the Console Version
 
@@ -197,12 +283,14 @@ The game is hosted on [Vercel](https://vercel.com). The `web/` folder is served 
 ```sql
 create table players (
   name text primary key,
+  email text,
   password_hash text not null,
   high_score int not null default 0,
   games_played int not null default 0,
   total_score int not null default 0,
   level int not null default 1
 );
+create unique index players_email_unique on players (email);
 alter table players enable row level security;
 ```
 
@@ -225,7 +313,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 ## 💾 Data Storage
 
-- **Web version:** players are stored in a Supabase Postgres table. Passwords are hashed with scrypt and salted. Logins use signed tokens that expire after 7 days, so players stay logged in across redeploys.
+- **Web version:** players are stored in a Supabase Postgres table. Passwords are hashed with scrypt and salted. Logins use signed tokens that expire after 7 days, so players stay logged in across redeploys. Emails are stored for account contact only, are not verified, and are never shown to other players.
 - **Console version:** players are stored locally in `data/players.txt`, which is not uploaded to GitHub.
 - The two versions keep **separate accounts and scores**. An account created on the website cannot be used in the console game, and the other way round.
 
@@ -234,6 +322,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 - **C** and **GCC (MinGW)** for the console game
 - **ANSI escape sequences** and Windows console APIs for terminal graphics and input
 - **HTML5 canvas, CSS and JavaScript** for the web game
+- **Web Audio API** for generated sound effects
 - **Node.js** serverless functions for the API
 - **Supabase (Postgres)** for online data storage
 - **Vercel** for hosting
@@ -241,9 +330,9 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 ## 🔮 Future Improvements
 
-- [ ] Sound effects with a mute button
-- [ ] Change password and forgot password
+- [ ] Change password and forgot password by email
 - [ ] Rank shown in the web in-game display
+- [ ] Sound for a failed level
 - [ ] Screenshots and a gameplay demo
 - [ ] Shared accounts between the console and web versions
 - [ ] Add a license
