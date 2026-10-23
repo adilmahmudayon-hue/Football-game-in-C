@@ -1,22 +1,22 @@
 # ⚽ Football Shootout — Football Shooting Game in C and JavaScript
 
-A football shooting game with two versions: a **terminal game in C** (Windows) and an **online web game** you can play from anywhere, on desktop or phone. Aim at regions of the goal, time your shot power, beat the goalkeeper, and clear 15 levels.
+A football shooting game with two versions: a **terminal game in C** (Windows) and an **online web game** you can play from anywhere, on desktop or phone. Aim at regions of the goal, time your shot power, beat the goalkeeper, and clear 15 levels while a crowd cheers or cries behind the goal.
 
 ## 🌍 Play Online
 
-**👉 [Play now: football-game-in-c.onrender.com](https://football-game-in-c.onrender.com)**
+**👉 [Play now: football-game-in-c.vercel.app](https://football-game-in-c.vercel.app)**
 
 - Works on desktop (keyboard) and on phones (on-screen touch buttons).
 - Create an account or log in, and your progress is saved online.
-- The game runs on free hosting, so the **first load can take up to a minute** while the server wakes up. Please wait and it will start.
+- A helper sticker gives tips on every screen. Drag it anywhere, or tap it to hide the speech bubble.
 - On a phone, turn the screen sideways for a bigger goal, and use *Add to Home screen* in your browser menu to open it like an app.
 
 **Links**
 
 | What | Link |
 |---|---|
-| Play the game | https://football-game-in-c.onrender.com |
-| Leaderboard data (JSON) | https://football-game-in-c.onrender.com/api/leaderboard |
+| Play the game | https://football-game-in-c.vercel.app |
+| Leaderboard data (JSON) | https://football-game-in-c.vercel.app/api/leaderboard |
 | Source code | https://github.com/adilmahmudayon-hue/Football-game-in-C |
 
 ---
@@ -27,6 +27,7 @@ A football shooting game with two versions: a **terminal game in C** (Windows) a
 - [Features](#-features)
 - [How to Play](#-how-to-play)
 - [Levels and Ranks](#-levels-and-ranks)
+- [Leaderboard](#-leaderboard)
 - [Project Structure](#-project-structure)
 - [Run the Web Version Locally](#-run-the-web-version-locally)
 - [Build the Console Version](#-build-the-console-version)
@@ -40,7 +41,7 @@ A football shooting game with two versions: a **terminal game in C** (Windows) a
 
 Players register or log in, pick a level, aim at a cell inside the goal and stop a power bar. The power decides how high the ball lands compared to the target. The game awards points and checks whether the player reached the target score to unlock the next level.
 
-The C version follows a modular approach, with separate modules for the goal, input, players, levels, power and utilities. The web version uses the same game rules, with accounts stored in an online database.
+The C version follows a modular approach, with separate modules for the goal, input, players, levels, power and utilities. The web version uses the same game rules, with accounts stored in an online database and the API running as serverless functions.
 
 ## ✨ Features
 
@@ -56,7 +57,6 @@ The C version follows a modular approach, with separate modules for the goal, in
 - **Moving goal** from level 11: the goal slides left and right, so you have to aim ahead of it
 - Level select with locked levels and a Play / Back preview
 - Saved high score, total score, games played and current level
-- Leaderboard of the top players
 
 ### Console version
 
@@ -66,8 +66,11 @@ The C version follows a modular approach, with separate modules for the goal, in
 ### Web version
 
 - Canvas graphics: goal, net, grass, goalkeeper, power bar and animated ball
+- **Crowd** behind the goal that sways while you aim, jumps with confetti when you score, and cries when you miss
+- **Helper sticker** with tips that change on every screen and follow the game while you play
 - Touch controls for phones
 - Online accounts with **hashed passwords** stored in a Supabase (Postgres) database
+- Leaderboard with your own rank highlighted
 - Quit level button during play
 
 ## 🕹️ How to Play
@@ -121,6 +124,10 @@ The C version follows a modular approach, with separate modules for the goal, in
 | 14 | Pro | 12 | 7 | 66% - 74% | + faster moving goal |
 | 15 | Pro | 13 | 7 | 68% - 76% | fastest goal and goalkeeper |
 
+## 📊 Leaderboard
+
+The web leaderboard shows the **top 15 players**, ranked by **level reached**, then by **total score**. Your own row is highlighted, and a box at the bottom shows your position out of all players, even if you are outside the top 15.
+
 ## 📂 Project Structure
 
 ```text
@@ -132,15 +139,24 @@ Football-game-in-C/
 ├── player/               accounts, stats, leaderboard (console)
 ├── power/                power bar and shot evaluation
 ├── utils/                console and timing helpers
-├── web/                  web game
+├── web/                  web game (static files)
 │   ├── index.html
 │   ├── style.css
-│   ├── game.js           canvas game
+│   ├── game.js           canvas game, crowd and goalkeeper
 │   ├── levels.js         level data
-│   └── menu.js           login, menus, touch controls
-├── server.js             Node server: web files and API
+│   ├── menu.js           login, menus, touch controls, helper sticker
+│   └── sticker*.png      helper sticker image
+├── api/                  serverless API (Vercel)
+│   ├── register.js
+│   ├── login.js
+│   ├── logout.js
+│   ├── save.js
+│   └── leaderboard.js
+├── lib/common.js         shared API code: database, signed tokens
 ├── auth.js               password hashing
+├── server.js             optional local Node server for testing
 ├── import.js             one-time import of players.txt into Supabase
+├── vercel.json           tells Vercel to serve the web/ folder
 ├── package.json
 ├── data/                 console game saves (not uploaded)
 └── README.md
@@ -157,7 +173,9 @@ $env:SUPABASE_SERVICE_KEY = "YOUR-SECRET-KEY"
 node server.js
 ```
 
-Open http://localhost:3000. The two variables only last for the terminal window where you set them.
+Open http://localhost:3000. The variables only last for the terminal window where you set them.
+
+`server.js` is a simple local server for testing. The online version runs the files in `api/` instead.
 
 ## 🖥️ Build the Console Version
 
@@ -172,7 +190,7 @@ Run it from the repository root so the `data/` folder is created there.
 
 ## ☁️ Deploying Your Own Copy
 
-The game is hosted on [Render](https://render.com) as a Node web service.
+The game is hosted on [Vercel](https://vercel.com). The `web/` folder is served as static files and the `api/` folder runs as serverless functions.
 
 1. Create a Supabase project and run this in its SQL Editor:
 
@@ -188,13 +206,26 @@ create table players (
 alter table players enable row level security;
 ```
 
-2. On Render, create a **Web Service** from your GitHub repo with Build Command `npm install` and Start Command `npm start`.
-3. Add the environment variables `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` (the **secret** key) in Render's **Environment** settings.
-4. Keep the secret key private. Never commit it to the repository.
+2. Create a random session secret:
+
+```powershell
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+3. On Vercel, import your GitHub repo as a new project. Set the framework preset to **Other**, and leave the build command empty (`vercel.json` points the output to `web`).
+4. Add these environment variables in Vercel:
+
+| Key | Value |
+|---|---|
+| `SUPABASE_URL` | your Supabase project URL |
+| `SUPABASE_SERVICE_KEY` | your Supabase **secret** key |
+| `SESSION_SECRET` | the random string from step 2 |
+
+5. Click **Deploy**. Keep the secret key and session secret private, and never commit them to the repository.
 
 ## 💾 Data Storage
 
-- **Web version:** players are stored in a Supabase Postgres table. Passwords are hashed with scrypt and salted. Data survives restarts and redeploys.
+- **Web version:** players are stored in a Supabase Postgres table. Passwords are hashed with scrypt and salted. Logins use signed tokens that expire after 7 days, so players stay logged in across redeploys.
 - **Console version:** players are stored locally in `data/players.txt`, which is not uploaded to GitHub.
 - The two versions keep **separate accounts and scores**. An account created on the website cannot be used in the console game, and the other way round.
 
@@ -203,18 +234,18 @@ alter table players enable row level security;
 - **C** and **GCC (MinGW)** for the console game
 - **ANSI escape sequences** and Windows console APIs for terminal graphics and input
 - **HTML5 canvas, CSS and JavaScript** for the web game
-- **Node.js** for the server
+- **Node.js** serverless functions for the API
 - **Supabase (Postgres)** for online data storage
-- **Render** for hosting
+- **Vercel** for hosting
 - **Git and GitHub** for version control
 
 ## 🔮 Future Improvements
 
-- [ ] Sound effects
+- [ ] Sound effects with a mute button
+- [ ] Change password and forgot password
+- [ ] Rank shown in the web in-game display
 - [ ] Screenshots and a gameplay demo
 - [ ] Shared accounts between the console and web versions
-- [ ] Persistent login sessions
-- [ ] Rank shown in the web in-game display
 - [ ] Add a license
 
 ## 👨‍💻 Author
