@@ -355,6 +355,7 @@ function startPlay(n) {
 
 function quitToMenu() {
   running = false;
+   stopCrowd();
   showMenu();
 }
 
@@ -373,6 +374,7 @@ onLevelEnd = async function (passed, score) {
     return;
   }
   user = r.user;
+  if (passed) playSound("celebrate");
 
   const target = LEVELS[n - 1].target;
   let buttons;

@@ -254,6 +254,7 @@ document.addEventListener("keydown", (e) => {
         lockedX = cellXLocal(cursorCol) + goalShift;
         power = 0;
         powerDir = 1;
+        playSound("whistle");
         state = "power";
       }
     } else return;
@@ -355,6 +356,7 @@ function spawnConfetti(n) {
 }
 
 function reactToShot(scored) {
+  playSound(scored ? "goal" : "miss");
   crowdTimer = 2.2;
   if (scored) {
     crowdMood = "cheer";
